@@ -393,7 +393,7 @@ export function HomeContent() {
 
                 <div className="flex items-center justify-between gap-4">
                   <Link
-                    href="https://x.com/bark_sh"
+                    href="https://x.com/bark_protocol"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-xs text-muted-foreground transition-colors hover:text-foreground sm:text-sm"
