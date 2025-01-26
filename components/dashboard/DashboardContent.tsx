@@ -3,14 +3,16 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, Zap, BarChart2, Users } from "lucide-react"
+import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, Zap, Users } from "lucide-react"
 import { FloatingWallet } from "@/components/FloatingWallet"
-import { AITradingAgent } from "@/components/dashboard/AITradingAgent"
+import { AITradingAgent } from "@/components/dashboard/AITrading"
 
 interface TokenData {
   name: string;
   price: number;
   change: number;
+  mint?: string;
+  decimals?: number;
 }
 
 interface NFT {
@@ -22,14 +24,11 @@ interface NFT {
   value: number;
 }
 
-interface Token {
-  name: string;
-  symbol: string;
-  balance: number;
-  pricePerToken: number;
-  imageUrl: string;
-  mint: string; // Missing mint address
-  decimals: number; // Missing decimals
+interface PortfolioData {
+  address: string;
+  totalBalance: number;
+  tokens: TokenData[];
+  nfts: NFT[];
 }
 
 const PortfolioData = {
@@ -39,29 +38,29 @@ const PortfolioData = {
     {
       name: "Solana",
       symbol: "SOL",
-      balance: 10,
-      pricePerToken: 270,
+      price: 270,
+      change: 5,
+      mint: "So11111111111111111111111111111111111111112",
+      decimals: 9,
       imageUrl: "https://cryptologos.cc/logos/solana-sol-logo.png",
-      mint: "So11111111111111111111111111111111111111112", // Example mint address
-      decimals: 9, // Solana typically uses 9 decimals
     },
     {
       name: "BARK",
       symbol: "BARK",
-      balance: 100000,
-      pricePerToken: 0.0000012,
+      price: 0.0000012,
+      change: -2,
+      mint: "BARKmintAddress1234567890",
+      decimals: 6,
       imageUrl: "https://ucarecdn.com/bbc74eca-8e0d-4147-8a66-6589a55ae8d0/bark.webp",
-      mint: "BARKmintAddress1234567890", // Example mint address for BARK token
-      decimals: 6, // Adjust according to your token's decimals
     },
     {
       name: "USD Coin",
       symbol: "USDC",
-      balance: 500,
-      pricePerToken: 1,
+      price: 1,
+      change: 0,
+      mint: "USDm11entAddress9876543210",
+      decimals: 6,
       imageUrl: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png",
-      mint: "USDm11entAddress9876543210", // Example mint address for USDC
-      decimals: 6, // USDC has 6 decimals
     },
   ],
   nfts: [
@@ -90,28 +89,21 @@ export function DashboardContent() {
     { name: "BARK", price: 0, change: 0 },
     { name: "USDC", price: 0, change: 0 },
   ]);
+  const [nfts, setNfts] = useState<NFT[]>(PortfolioData.nfts);
 
   useEffect(() => {
     const fetchTokenData = async () => {
-      // Here you can replace this with actual API fetching logic
-      const updatedTokens = [
-        {
-          name: "SOL",
-          price: 100,
-          change: 5,
-        },
-        {
-          name: "BARK",
-          price: 0.0001,
-          change: -2,
-        },
-        {
-          name: "USDC",
-          price: 1,
-          change: 0,
-        },
-      ];
-      setTokens(updatedTokens);
+      try {
+        // Example of fetching data from an API (replace with real API call)
+        const updatedTokens = [
+          { name: "SOL", price: 100, change: 5 },
+          { name: "BARK", price: 0.0001, change: -2 },
+          { name: "USDC", price: 1, change: 0 },
+        ];
+        setTokens(updatedTokens);
+      } catch (error) {
+        console.error("Failed to fetch token data", error);
+      }
     };
 
     fetchTokenData();
@@ -141,6 +133,8 @@ export function DashboardContent() {
                 )}
                 {Math.abs(token.change)}%
               </p>
+              {token.mint && <p className="text-xs text-muted-foreground">Mint: {token.mint}</p>}
+              {token.decimals && <p className="text-xs text-muted-foreground">Decimals: {token.decimals}</p>}
             </CardContent>
           </Card>
         ))}
@@ -172,9 +166,7 @@ export function DashboardContent() {
             <CardTitle>Blink Add</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm">
-              Quickly add assets or manage your Blink campaigns with ease.
-            </p>
+            <p className="text-sm">Quickly add assets or manage your Blink campaigns with ease.</p>
             <Button className="w-full bg-gray-800 text-white hover:bg-gray-700 mt-4">
               <Zap className="mr-2 h-4 w-4" /> Add Blink
             </Button>
@@ -211,6 +203,22 @@ export function DashboardContent() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {nfts.map((nft) => (
+          <Card key={nft.id}>
+            <CardHeader>
+              <CardTitle>{nft.name}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <img src={nft.imageUrl} alt={nft.name} className="w-full h-auto" />
+              <p className="text-sm">{nft.description}</p>
+              <p className="text-xs text-muted-foreground">Mint Date: {nft.mintDate}</p>
+              <p className="text-lg font-bold">Value: ${nft.value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <FloatingWallet data={PortfolioData} className="lg:ml-auto" />

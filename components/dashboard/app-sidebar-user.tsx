@@ -25,8 +25,8 @@ export const AppSidebarUser = () => {
   const { label, subLabel, twitterUsername, twitterProfileImage } = useMemo(() => {
     const privyUser = user?.privyUser
     return {
-      label: privyUser?.wallet ? privyUser.wallet.address.substring(0, 5) : privyUser?.email?.address,
-      subLabel: privyUser?.id?.substring(10),
+      label: privyUser?.wallet ? privyUser.wallet.address.substring(0, 5) : privyUser?.email?.address || "Unknown User",
+      subLabel: privyUser?.id?.substring(10) || "N/A",
       twitterUsername: privyUser?.twitter?.username,
       twitterProfileImage: privyUser?.twitter?.profilePictureUrl,
     }
@@ -126,4 +126,3 @@ export const AppSidebarUser = () => {
     </SidebarMenu>
   )
 }
-

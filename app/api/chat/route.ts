@@ -1,5 +1,4 @@
 import { revalidatePath } from 'next/cache';
-
 import {
   CoreTool,
   Message,
@@ -12,7 +11,6 @@ import {
 } from 'ai';
 import { performance } from 'perf_hooks';
 import { z } from 'zod';
-
 import {
   defaultModel,
   defaultSystemPrompt,
@@ -39,6 +37,18 @@ import {
 
 export const maxDuration = 120;
 
+const messageSchema = z.object({
+  id: z.string(),
+  message: z.object({
+    role: z.enum(['user', 'system', 'assistant']),
+    content: z.string(),
+    experimental_attachments: z.array(z.object({
+      contentType: z.string(),
+      url: z.string(),
+    })).optional(),
+  }),
+});
+
 export async function POST(req: Request) {
   const startTime = performance.now();
 
@@ -58,19 +68,23 @@ export async function POST(req: Request) {
   }
 
   try {
-    // Get the (newest) message sent to the API
-    const { id: conversationId, message }: { id: string; message: Message } =
-      await req.json();
-    if (!message) return new Response('No message found', { status: 400 });
+    const { id: conversationId, message }: { id: string; message: Message } = await req.json();
+    
+    // Validate message
+    try {
+      messageSchema.parse({ id: conversationId, message });
+    } catch (e) {
+      return new Response('Invalid message data', { status: 400 });
+    }
+
     logWithTiming(startTime, '[chat/route] message received');
 
     // Fetch existing messages for the conversation
-    const existingMessages =
-      (await dbGetConversationMessages({
-        conversationId,
-        limit: MAX_TOKEN_MESSAGES,
-        isServer: true,
-      })) ?? [];
+    const existingMessages = (await dbGetConversationMessages({
+      conversationId,
+      limit: MAX_TOKEN_MESSAGES,
+      isServer: true,
+    })) ?? [];
 
     logWithTiming(startTime, '[chat/route] fetched existing messages');
 
@@ -88,27 +102,24 @@ export async function POST(req: Request) {
     }
 
     // Create a new user message in the DB if the current message is from the user
-    const newUserMessage =
-      message.role === 'user'
-        ? await dbCreateMessages({
-            messages: [
-              {
-                conversationId,
-                role: 'user',
-                content: message.content,
-                toolInvocations: [],
-                experimental_attachments: message.experimental_attachments
-                  ? JSON.parse(JSON.stringify(message.experimental_attachments))
-                  : undefined,
-              },
-            ],
-          })
-        : null;
+    const newUserMessage = message.role === 'user'
+      ? await dbCreateMessages({
+          messages: [
+            {
+              conversationId,
+              role: 'user',
+              content: message.content,
+              toolInvocations: [],
+              experimental_attachments: message.experimental_attachments
+                ? JSON.parse(JSON.stringify(message.experimental_attachments))
+                : undefined,
+            },
+          ],
+        })
+      : null;
 
-    // Check if there is an unconfirmed confirmation message that we need to handle
+    // Handle confirmation message
     const unconfirmed = getUnconfirmedConfirmationMessage(existingMessages);
-
-    // Handle the confirmation message if it exists
     const { confirmationHandled, updates } = await handleConfirmation({
       current: message,
       unconfirmed,
@@ -133,14 +144,11 @@ export async function POST(req: Request) {
     // Filter out empty messages and ensure sorting by createdAt ascending
     const relevant = existingMessages
       .filter((m) => m.content !== '')
-      .sort(
-        (a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0),
-      );
+      .sort((a, b) => (a.createdAt?.getTime() || 0) - (b.createdAt?.getTime() || 0));
 
-    // Convert the message to a confirmation ('confirm' or 'deny') if it is for a confirmation prompt, otherwise add it to the relevant messages
+    // Handle confirmation result
     const confirmationResult = getConfirmationResult(message);
     if (confirmationResult !== undefined) {
-      // Fake message to provide the confirmation selection to the model
       relevant.push({
         id: message.id,
         content: confirmationResult,
@@ -158,66 +166,44 @@ export async function POST(req: Request) {
       execute: async (dataStream) => {
         if (dataStream.onError) {
           dataStream.onError((error: any) => {
-            console.error(
-              '[chat/route] createDataStreamResponse.execute dataStream error:',
-              error,
-            );
+            console.error('[chat/route] createDataStreamResponse.execute dataStream error:', error);
           });
         }
 
-        // Write any updates to the data stream (e.g. tool updates)
         if (updates.length) {
           updates.forEach((u) => dataStream.writeData(u));
         }
 
-        // Exclude the confirmation tool if we are handling a confirmation
-        const { toolsRequired, usage: orchestratorUsage } =
-          await getToolsFromOrchestrator(
-            relevant,
-            degenMode || confirmationHandled,
-          );
-
-        console.log('toolsRequired', toolsRequired);
-
-        logWithTiming(
-          startTime,
-          '[chat/route] getToolsFromOrchestrator complete',
+        // Fetch tools dynamically based on the conversation context
+        const { toolsRequired, usage: orchestratorUsage } = await getToolsFromOrchestrator(
+          relevant,
+          degenMode || confirmationHandled,
         );
 
-        // Get a list of required tools from the orchestrator
+        logWithTiming(startTime, '[chat/route] getToolsFromOrchestrator complete');
+
         const tools = toolsRequired
           ? getToolsFromRequiredTools(toolsRequired)
           : defaultTools;
 
-        // Begin streaming text from the model
         const result = streamText({
           model: defaultModel,
           system: systemPrompt,
           tools: tools as Record<string, CoreTool<any, any>>,
           experimental_toolCallStreaming: true,
-          experimental_telemetry: {
-            isEnabled: true,
-            functionId: 'stream-text',
-          },
-          experimental_repairToolCall: async ({
-            toolCall,
-            tools,
-            parameterSchema,
-            error,
-          }) => {
+          experimental_telemetry: { isEnabled: true, functionId: 'stream-text' },
+          experimental_repairToolCall: async ({ toolCall, tools, parameterSchema, error }) => {
             if (NoSuchToolError.isInstance(error)) {
               return null;
             }
-
             console.log('[chat/route] repairToolCall', toolCall);
-
             const tool = tools[toolCall.toolName as keyof typeof tools];
             const { object: repairedArgs } = await generateObject({
               model: defaultModel,
               schema: tool.parameters as z.ZodType<any>,
               prompt: [
                 `The model tried to call the tool "${toolCall.toolName}"` +
-                  ` with the following arguments:`,
+                ` with the following arguments:`,
                 JSON.stringify(toolCall.args),
                 `The tool accepts the following schema:`,
                 JSON.stringify(parameterSchema(toolCall)),
@@ -231,18 +217,15 @@ export async function POST(req: Request) {
           messages: relevant,
           async onFinish({ response, usage }) {
             if (!userId) return;
+
             try {
-              logWithTiming(
-                startTime,
-                '[chat/route] streamText.onFinish complete',
-              );
+              logWithTiming(startTime, '[chat/route] streamText.onFinish complete');
 
               const finalMessages = appendResponseMessages({
                 messages: [],
                 responseMessages: response.messages,
               }).filter(
                 (m) =>
-                  // Accept either a non-empty message or a tool invocation
                   m.content !== '' || (m.toolInvocations || []).length !== 0,
               );
 
@@ -272,10 +255,7 @@ export async function POST(req: Request) {
                 })),
               });
 
-              logWithTiming(
-                startTime,
-                '[chat/route] dbCreateMessages complete',
-              );
+              logWithTiming(startTime, '[chat/route] dbCreateMessages complete');
 
               // Save the token stats
               if (saved && newUserMessage && isValidTokenUsage(usage)) {
@@ -299,46 +279,21 @@ export async function POST(req: Request) {
                   totalTokens,
                 });
 
-                logWithTiming(
-                  startTime,
-                  '[chat/route] dbCreateTokenStat complete',
-                );
+                logWithTiming(startTime, '[chat/route] dbCreateTokenStat complete');
               }
 
               revalidatePath('/api/conversations');
             } catch (error) {
-              console.error('[chat/route] Failed to save messages', error);
+              console.error('[chat/route] Error in onFinish:', error);
             }
           },
         });
-        result.mergeIntoDataStream(dataStream);
-      },
-      onError: (_) => {
-        return 'An error occurred';
+
+        return result;
       },
     });
   } catch (error) {
-    console.error('[chat/route] Unexpected error:', error);
-    return new Response('Internal Server Error', { status: 500 });
-  }
-}
-
-export async function DELETE(req: Request) {
-  const session = await verifyUser();
-  const userId = session?.data?.data?.id;
-
-  if (!userId) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  try {
-    const { id: conversationId } = await req.json();
-    await dbDeleteConversation({ conversationId, userId });
-    revalidatePath('/api/conversations');
-
-    return new Response('Conversation deleted', { status: 200 });
-  } catch (error) {
-    console.error('[chat/route] Delete error:', error);
+    console.error('[chat/route] POST error:', error);
     return new Response('Internal Server Error', { status: 500 });
   }
 }

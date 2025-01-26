@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { WalletButton } from "../ui/wallet-button"
+import { Tooltip } from "@/components/ui/tooltip" 
 
 export function Header() {
   return (
@@ -13,8 +14,12 @@ export function Header() {
         </Avatar>
         <span className="font-medium hidden sm:inline">User Name</span>
       </div>
-      <WalletButton />
+
+      <div className="flex items-center space-x-4">
+        <Tooltip content="Connect Wallet" delayDuration={500}>
+          <WalletButton />
+        </Tooltip>
+      </div>
     </header>
   )
 }
-

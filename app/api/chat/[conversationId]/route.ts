@@ -28,7 +28,7 @@ export async function GET(
   if (!conversationId) {
     return NextResponse.json(
       { error: 'Missing conversationId' },
-      { status: 401 },
+      { status: 400 }, // Adjusted status code
     );
   }
 

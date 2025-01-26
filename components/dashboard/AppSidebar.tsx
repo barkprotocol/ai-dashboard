@@ -22,7 +22,7 @@ const navItems = [
   { icon: Home, label: "Dashboard", href: "/dashboard" },
   { icon: BarChart, label: "Analytics", href: "/analytics" },
   { icon: Zap, label: "AI Trading", href: "/trading" },
-  { icon: MessageSquare, label: "BARK AI Agent", href: "/chat" },
+  { icon: MessageSquare, label: "Chat", href: "/chat" },
   { icon: User, label: "Profile", href: "/profile" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ]
@@ -38,13 +38,14 @@ export function AppSidebar() {
         variant="ghost"
         className="md:hidden fixed top-4 left-4 z-50"
         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        aria-label="Toggle menu"
       >
         <Menu className="h-6 w-6" />
       </Button>
       <Sidebar
         collapsible={isCollapsed ? "icon" : "none"}
         className={cn(
-          "border-r bg-white dark:bg-gray-800 transition-all duration-300",
+          "border-r bg-white dark:bg-gray-800 transition-all duration-300 ease-in-out",
           isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           isCollapsed ? "w-16" : "w-64",
         )}
@@ -63,9 +64,12 @@ export function AppSidebar() {
                       "flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700",
                       pathname === item.href && "bg-gray-100 dark:bg-gray-700",
                     )}
+                    aria-label={item.label}
                   >
                     <item.icon className="h-5 w-5 mr-2" />
-                    <span className={cn("transition-opacity", isCollapsed && "opacity-0")}>{item.label}</span>
+                    <span className={cn("transition-opacity", isCollapsed && "opacity-0")}>
+                      {item.label}
+                    </span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
