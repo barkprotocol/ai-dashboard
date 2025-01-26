@@ -1,3 +1,14 @@
+import { version } from '../package.json';
+
+export const APP_VERSION = version;
+export const IS_BETA = true;
+
+export const RPC_URL =
+  process.env.NEXT_PUBLIC_HELIUS_RPC_URL ||
+  'https://api.mainnet-beta.solana.com';
+
+export const MAX_TOKEN_MESSAGES = 5;
+
 import { PublicKey } from "@solana/web3.js"
 
 /**
@@ -12,6 +23,8 @@ export const TOKENS = {
   bSOL: new PublicKey("bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1"),
   mSOL: new PublicKey("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"),
   BONK: new PublicKey("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"),
+  BARK: new PublicKey("2NTvEssJ2i998V2cMGT4Fy3JhyFnAzHFonDo9dbAkVrg"),
+
 } as const
 
 /**
