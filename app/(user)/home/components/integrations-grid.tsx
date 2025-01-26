@@ -1,4 +1,4 @@
-import { INTEGRATIONS } from '../data/integrations';
+import { INTEGRATIONS } from '../data/suggestions';
 import { IntegrationCard } from './integration-card';
 
 export function IntegrationsGrid() {

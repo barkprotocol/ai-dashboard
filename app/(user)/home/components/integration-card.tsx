@@ -2,7 +2,7 @@ import Image from 'next/image';
 
 import { motion } from 'framer-motion';
 
-import type { Integration } from '../data/integrations';
+import type { Integration } from '../data/suggestions';
 
 interface IntegrationCardProps {
   item: Integration;

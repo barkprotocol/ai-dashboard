@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, User, Settings, MessageSquare, BarChart, Zap, ChevronLeft, ChevronRight, Menu } from "lucide-react"
+import { Home, User, LayoutDashboard, Settings, MessageSquare, BarChart, Zap, ChevronLeft, ChevronRight, Menu } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import {
@@ -19,7 +19,8 @@ import { Logo } from "@/components/ui/logo"
 import { Button } from "../ui/button"
 
 const navItems = [
-  { icon: Home, label: "Dashboard", href: "/dashboard" },
+  { icon: Home, label: "Home", href: "/home" },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
   { icon: BarChart, label: "Analytics", href: "/analytics" },
   { icon: Zap, label: "AI Trading", href: "/trading" },
   { icon: MessageSquare, label: "Chat", href: "/chat" },
