@@ -4,7 +4,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AppSidebar } from "@/components/dashboard/app-sidebar"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "sonner"
 import { ErrorBoundary } from "@/components/error-boundary"
 import type React from "react"
 
@@ -34,7 +34,7 @@ export default function RootLayout({
                   {children}
                 </main>
               </div>
-              <Toaster />
+              <Toaster position="bottom-right" theme="system" />
             </SidebarProvider>
           </ThemeProvider>
         </ErrorBoundary>
