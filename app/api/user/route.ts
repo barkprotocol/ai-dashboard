@@ -6,12 +6,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-export async function verifyUser(req: NextRequest) {
+export async function verifyUser(req: NextRequest): Promise<{ user: any } | { error: string }> {
   try {
     const token = req.headers.get("Authorization")?.split("Bearer ")[1]
 
     if (!token) {
-      return NextResponse.json({ error: "No token provided" }, { status: 401 })
+      return { error: "No token provided" }
     }
 
     const {
@@ -20,17 +20,22 @@ export async function verifyUser(req: NextRequest) {
     } = await supabase.auth.getUser(token)
 
     if (error || !user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+      return { error: "Invalid token" }
     }
 
-    return NextResponse.json({ user })
+    return { user }
   } catch (error) {
     console.error("User verification error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+    return { error: "Internal Server Error" }
   }
 }
 
 export async function GET(req: NextRequest) {
+  const verificationResult = await verifyUser(req)
+  if ("error" in verificationResult) {
+    return NextResponse.json(verificationResult, { status: 401 })
+  }
+
   try {
     const userId = req.nextUrl.searchParams.get("userId")
 
@@ -52,6 +57,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const verificationResult = await verifyUser(req)
+  if ("error" in verificationResult) {
+    return NextResponse.json(verificationResult, { status: 401 })
+  }
+
   try {
     const userData = await req.json()
 
@@ -69,6 +79,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const verificationResult = await verifyUser(req)
+  if ("error" in verificationResult) {
+    return NextResponse.json(verificationResult, { status: 401 })
+  }
+
   try {
     const { id, ...updateData } = await req.json()
 
@@ -90,6 +105,11 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const verificationResult = await verifyUser(req)
+  if ("error" in verificationResult) {
+    return NextResponse.json(verificationResult, { status: 401 })
+  }
+
   try {
     const userId = req.nextUrl.searchParams.get("userId")
 

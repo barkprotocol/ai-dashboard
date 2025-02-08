@@ -31,6 +31,7 @@ function MessagePair({ isFirst = false }: { isFirst?: boolean }) {
                 width: `${userMsgWidth}px`,
                 height: `${userMsgHeight}px`,
               }}
+              aria-hidden="true"
             />
           </div>
         </div>
@@ -39,7 +40,7 @@ function MessagePair({ isFirst = false }: { isFirst?: boolean }) {
       {/* AI Response */}
       <div className={`flex w-full items-start gap-3 ${!isFirst ? "mt-6" : ""}`}>
         <Avatar className="mt-0.5 h-8 w-8 shrink-0 select-none">
-          <AvatarFallback></AvatarFallback>
+          <AvatarFallback>AI</AvatarFallback>
         </Avatar>
         <div className="relative flex max-w-[85%] flex-col gap-2">
           <div className="relative flex flex-col gap-2 rounded-2xl bg-muted/60 px-4 py-3 text-sm shadow-sm">
@@ -49,6 +50,7 @@ function MessagePair({ isFirst = false }: { isFirst?: boolean }) {
                 width: `${aiMsgWidth}px`,
                 height: `${aiMsgHeight}px`,
               }}
+              aria-hidden="true"
             />
           </div>
         </div>
@@ -66,7 +68,7 @@ export function ChatSkeleton() {
   const pairs = getRandomInt(1, 2)
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" aria-busy="true" aria-label="Loading chat interface">
       {/* Header */}
       <div className="p-4 border-b">
         <h2 className="text-lg font-semibold">Chat Interface</h2>
@@ -89,27 +91,40 @@ export function ChatSkeleton() {
       {/* Input Area */}
       <div className="sticky bottom-0 z-10">
         {/* Gradient overlay for smooth transition */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background via-background/95 to-background/0" />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background via-background/95 to-background/0"
+          aria-hidden="true"
+        />
         <div className="relative mx-auto w-full max-w-3xl px-4 py-4">
           <div className="space-y-4">
             {/* Message input box */}
             <div className="relative overflow-hidden rounded-2xl bg-muted">
-              <div className="min-h-[100px] w-full animate-pulse resize-none border-0 bg-transparent px-4 py-[1.3rem]" />
+              <div
+                className="min-h-[100px] w-full animate-pulse resize-none border-0 bg-transparent px-4 py-[1.3rem]"
+                aria-hidden="true"
+              />
 
               {/* Action buttons */}
               <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" disabled>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 hover:bg-muted"
+                  disabled
+                  aria-label="Attach image"
+                >
                   <ImageIcon className="h-5 w-5" />
                 </Button>
 
-                <Button type="submit" size="icon" variant="ghost" disabled className="h-8 w-8 hover:bg-muted">
+                <Button type="submit" size="icon" variant="ghost" disabled aria-label="Send message">
                   <SendHorizontal className="h-5 w-5" />
                 </Button>
               </div>
             </div>
 
             {/* Footer text */}
-            <div className="text-xs text-muted-foreground">...</div>
+            <div className="text-xs text-muted-foreground">AI is thinking...</div>
           </div>
         </div>
       </div>

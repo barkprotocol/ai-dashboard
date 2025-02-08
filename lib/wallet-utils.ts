@@ -1,12 +1,49 @@
-// Rest of the file content
-//  The provided updates do not give specific code to replace.  The error message "Expected an expression but instead found '...'." indicates a syntax error likely caused by an improperly escaped ellipsis (...) within a string or JSX attribute.  Without the original code containing the ellipsis, I cannot provide a corrected version.  To fix this, the ellipsis needs to be escaped correctly depending on its context.  For example:
+import type { PublicKey, Transaction } from "@solana/web3.js"
+import type { WalletAdapter } from "@solana/wallet-adapter-base"
 
-// If within a string:
-// const myString = "This string contains an ellipsis: \\...";
+// Define a custom BaseWallet interface
+interface BaseWallet {
+  publicKey: PublicKey | null
+  signTransaction(transaction: Transaction): Promise<Transaction>
+  signAllTransactions(transactions: Transaction[]): Promise<Transaction[]>
+}
 
-// If within a JSX attribute:
-// <MyComponent myProp={`This prop contains an ellipsis: ...`} />  would become
-// <MyComponent myProp={"This prop contains an ellipsis: ..."} /> or handle it differently depending on the framework.
+export function isBaseWallet(wallet: any): wallet is BaseWallet {
+  return wallet && "publicKey" in wallet && "signTransaction" in wallet && "signAllTransactions" in wallet
+}
 
-// Please provide the line of code containing the ellipsis for a proper fix.
+export function isWalletAdapter(wallet: any): wallet is WalletAdapter {
+  return isBaseWallet(wallet) && "connect" in wallet && "disconnect" in wallet && "sendTransaction" in wallet
+}
 
+export async function signTransaction(
+  wallet: BaseWallet | WalletAdapter,
+  transaction: Transaction,
+): Promise<Transaction> {
+  if (!wallet.publicKey) {
+    throw new Error("Wallet not connected")
+  }
+
+  return wallet.signTransaction(transaction)
+}
+
+export async function signAllTransactions(
+  wallet: BaseWallet | WalletAdapter,
+  transactions: Transaction[],
+): Promise<Transaction[]> {
+  if (!wallet.publicKey) {
+    throw new Error("Wallet not connected")
+  }
+
+  return wallet.signAllTransactions(transactions)
+}
+
+export function getPublicKey(wallet: BaseWallet | WalletAdapter): PublicKey {
+  if (!wallet.publicKey) {
+    throw new Error("Wallet not connected")
+  }
+
+  return wallet.publicKey
+}
+
+v

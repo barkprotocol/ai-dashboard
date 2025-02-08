@@ -1,6 +1,6 @@
 // Placeholder for AI providers
 export const DefaultToolResultRenderer = ({ result }: { result: unknown }) => {
-  return <div>Tool Result: {JSON.stringify(result)}</div>
+  return { type: "div", props: { children: `Tool Result: ${JSON.stringify(result)}` } }
 }
 
 export const getToolConfig = (toolName: string) => {

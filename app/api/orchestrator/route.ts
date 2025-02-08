@@ -20,7 +20,11 @@ export async function POST(req: NextRequest) {
     const { messages, userId } = await req.json()
 
     // Fetch user data from Supabase
-    const { data: userData, error: userError } = await supabase.from("users").select("*").eq("id", userId).single()
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single()
 
     if (userError) {
       throw new Error("Error fetching user data")
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
     // Create a chat completion stream
     const response = await openai.chat.completions.create({
       model: "gpt-4",
-      messages: aiMessages,
+      messages: aiMessages as OpenAI.Chat.ChatCompletionMessage[],
       stream: true,
     })
 
@@ -50,4 +54,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
-

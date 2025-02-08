@@ -1,190 +1,219 @@
 "use client"
 
+import type React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { type Message, experimental_useAssistant as useAssistant } from "ai/react"
-import { AlertCircle, ArrowRight, Trash2 } from "lucide-react"
+import type { Message } from "ai"
 import { toast } from "sonner"
 
-import { useUser } from "@/hooks/use-user"
 import { cn } from "@/lib/utils"
-import { ActionEmitter } from "@/components/action-emitter"
-import { ConversationInput } from "@/components/conversation-input"
-import { SavedPromptsModal } from "@/components/saved-prompts-modal"
-import { SavedPromptsProvider } from "@/components/saved-prompts-provider"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useChat } from "@/hooks/use-chat"
+import { useUser } from "@/hooks/use-user"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { TypingAnimation } from "@/components/ui/typing-animation"
-import { MessageContent } from "@/components/message/message-content"
-import { ToolResult } from "@/components/message/tool-result"
-import { WalletPortfolio } from "@/components/message/wallet-portfolio"
+import { Textarea } from "@/components/ui/textarea"
+import ChatMessage from "@/components/chat-message"
+import { EmptyScreen } from "@/components/empty-screen"
+import ChatScrollAnchor from "@/components/chat-scroll-anchor"
+import { useAction } from "@/hooks/use-action"
+import { useConversations } from "@/hooks/use-conversations"
+import { SavedPromptsMenu } from "@/components/saved-prompts-menu"
 
-interface ChatInterfaceProps {
+export interface ChatProps extends React.ComponentProps<"div"> {
+  initialMessages?: Message[]
   id?: string
 }
 
-export function ChatInterface({ id }: ChatInterfaceProps) {
+export function ChatInterface({ id, initialMessages, className }: ChatProps) {
   const router = useRouter()
   const { user } = useUser()
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const [savedPrompts, setSavedPrompts] = useState([])
-  const [isSavedPromptsModalOpen, setIsSavedPromptsModalOpen] = useState(false)
+  const { dispatchAction } = useAction()
+  const { addConversation } = useConversations()
+  const [attachments, setAttachments] = useState<File[]>([])
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error, data } = useAssistant({
-    api: `/api/chat/${id}`,
-    initialMessages: [],
-    id,
-    onResponse: (response) => {
-      if (response.status === 401) {
-        toast.error("Unauthorized. Please log in.")
-        router.push("/login")
-      }
-    },
-    onFinish: (message) => {
-      if (!id && message.id) {
-        router.push(`/chat/${message.id}`)
-      }
-    },
-  })
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    append,
+    reload,
+    stop,
+    isLoading,
+    setInput,
+    conversationId,
+    startNewConversation,
+  } = useChat()
 
-  const handleNewChat = useCallback(() => {
-    router.push("/chat")
-  }, [router])
-
-  const handleDeleteChat = useCallback(async () => {
-    if (!id) return
-
-    try {
-      const response = await fetch(`/api/chat/${id}`, {
-        method: "DELETE",
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to delete chat")
-      }
-
-      router.push("/chat")
-      toast.success("Chat deleted successfully")
-    } catch (error) {
-      console.error("Error deleting chat:", error)
-      toast.error("Failed to delete chat")
-    }
-  }, [id, router])
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [isTyping, setIsTyping] = useState<boolean>(false)
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+    if (inputRef.current) {
+      inputRef.current.focus()
     }
-  }, [scrollAreaRef])
+  }, [])
+
+  useEffect(() => {
+    if (id && !conversationId) {
+      startNewConversation()
+    }
+  }, [id, conversationId, startNewConversation])
+
+  useEffect(() => {
+    if (initialMessages) {
+      initialMessages.forEach((message) => append(message))
+    }
+  }, [append, initialMessages])
+
+  const onSubmit = useCallback(
+    async (value: string) => {
+      if (!user) {
+        toast.error("Please sign in to send messages")
+        return
+      }
+
+      if (!value || value.trim() === "") {
+        toast.error("Please enter a message")
+        return
+      }
+
+      const attachmentUrls = await Promise.all(
+        attachments.map(async (file) => {
+          const formData = new FormData()
+          formData.append("file", file)
+          const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          })
+          if (!response.ok) {
+            throw new Error("Failed to upload file")
+          }
+          const data = await response.json()
+          return data.url
+        }),
+      )
+
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        content: value,
+        role: "user",
+        experimental_attachments: attachmentUrls.map((url) => ({
+          url,
+          contentType: "image/png",
+        })),
+      }
+
+      append(newMessage)
+
+      setInput("")
+      setAttachments([])
+
+      await handleSubmit(newMessage)
+    },
+    [user, attachments, append, setInput, handleSubmit],
+  )
+
+  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setAttachments(Array.from(event.target.files))
+    }
+  }, [])
 
   return (
-    <SavedPromptsProvider>
-      <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-            <div className="mx-auto max-w-3xl">
-              {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <div className="text-center">
-                    <h2 className="mb-4 text-2xl font-bold">Welcome to AI Trading Assistant</h2>
-                    <p className="mb-4 text-muted-foreground">Start a conversation by typing a message below.</p>
-                  </div>
-                </div>
-              ) : (
-                messages.map((message: Message, index: number) => (
-                  <div
-                    key={index}
-                    className={cn("mb-4 flex", {
-                      "justify-end": message.role === "user",
-                    })}
-                  >
-                    <div
-                      className={cn("flex max-w-[80%] items-end", {
-                        "flex-row-reverse": message.role === "user",
-                      })}
-                    >
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage
-                          src={message.role === "user" ? user?.image || "/placeholder.svg" : "/ai-avatar.png"}
-                          alt={message.role === "user" ? "User Avatar" : "AI Avatar"}
-                        />
-                        <AvatarFallback>{message.role === "user" ? "U" : "AI"}</AvatarFallback>
-                      </Avatar>
-                      <div
-                        className={cn("mx-2 rounded-lg px-4 py-2", {
-                          "bg-primary text-primary-foreground": message.role === "user",
-                          "bg-muted": message.role !== "user",
-                        })}
-                      >
-                        <MessageContent content={message.content} />
-                        {message.toolResults?.map((result, index) => (
-                          <ToolResult key={index} result={result} />
-                        ))}
-                        {message.walletPortfolio && <WalletPortfolio portfolio={message.walletPortfolio} />}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-              {isLoading && (
-                <div className="mb-4 flex">
-                  <div className="flex max-w-[80%] items-end">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="/ai-avatar.png" alt="AI Avatar" />
-                      <AvatarFallback>AI</AvatarFallback>
-                    </Avatar>
-                    <div className="mx-2 rounded-lg bg-muted px-4 py-2">
-                      <TypingAnimation />
-                    </div>
-                  </div>
-                </div>
-              )}
-              {error && (
-                <div className="mb-4 flex items-center justify-center">
-                  <AlertCircle className="mr-2 h-4 w-4 text-destructive" />
-                  <p className="text-sm text-destructive">An error occurred. Please try again.</p>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-        <div className="border-t p-4">
-          <div className="mx-auto max-w-3xl">
-            <ConversationInput
-              value={input}
-              onChange={handleInputChange}
-              onSubmit={handleSubmit}
-              onChat={true}
-              savedPrompts={savedPrompts}
-              setSavedPrompts={setSavedPrompts}
+    <>
+      <div className={cn("pb-[200px] pt-4 md:pt-10", className)}>
+        {messages.length ? (
+          <>
+            {messages.map((message, index) => (
+              <ChatMessage key={index} message={message} />
+            ))}
+            <ChatScrollAnchor trackVisibility={isLoading} />
+          </>
+        ) : (
+          <EmptyScreen setInput={setInput} />
+        )}
+      </div>
+      <div className="fixed inset-x-0 bottom-0 bg-gradient-to-b from-muted/10 from-10% to-muted/30 to-50%">
+        <div className="mx-auto sm:max-w-2xl sm:px-4">
+          <div className="flex h-10 items-center justify-center">
+            {isTyping ? (
+              <p className="text-xs text-muted-foreground">AI Agent is typing...</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">AI Agent is ready</p>
+            )}
+          </div>
+          <div className="space-y-4 border-t bg-background px-4 py-2 shadow-lg sm:rounded-t-xl sm:border md:py-4">
+            <SavedPromptsMenu
+              onPromptSelect={(prompt) => {
+                setInput(prompt.content)
+                inputRef.current?.focus()
+              }}
             />
-            <div className="mt-4 flex justify-between">
-              <Button variant="outline" onClick={handleNewChat}>
-                New Chat
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              {id && (
-                <Button variant="outline" onClick={handleDeleteChat}>
-                  Delete Chat
-                  <Trash2 className="ml-2 h-4 w-4" />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                onSubmit(input)
+              }}
+            >
+              <div className="relative flex max-h-60 w-full grow flex-col overflow-hidden bg-background px-8 sm:rounded-md sm:border sm:px-12">
+                <Textarea
+                  ref={inputRef}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      onSubmit(input)
+                    }
+                  }}
+                  rows={1}
+                  value={input}
+                  onChange={handleInputChange}
+                  placeholder="Send a message."
+                  spellCheck={false}
+                  className="min-h-[60px] w-full resize-none bg-transparent px-4 py-[1.3rem] focus-within:outline-none sm:text-sm"
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    id="file-upload"
+                    multiple
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="cursor-pointer text-sm text-muted-foreground hover:text-primary"
+                  >
+                    Attach files
+                  </label>
+                  {attachments.length > 0 && (
+                    <span className="ml-2 text-sm text-muted-foreground">{attachments.length} file(s) selected</span>
+                  )}
+                </div>
+                <Button type="submit" size="icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="h-4 w-4"
+                    strokeWidth="2"
+                  >
+                    <path
+                      d="M.5 1.163A1 1 0 0 1 1.97.28l12.868 6.837a1 1 0 0 1 0 1.766L1.969 15.72A1 1 0 0 1 .5 14.836V10.33a1 1 0 0 1 .816-.983L8.5 8 1.316 6.653A1 1 0 0 1 .5 5.67V1.163Z"
+                      fill="currentColor"
+                    ></path>
+                  </svg>
+                  <span className="sr-only">Send message</span>
                 </Button>
-              )}
-              <Button variant="outline" onClick={() => setIsSavedPromptsModalOpen(true)}>
-                Saved Prompts
-              </Button>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       </div>
-      <SavedPromptsModal
-        isOpen={isSavedPromptsModalOpen}
-        onClose={() => setIsSavedPromptsModalOpen(false)}
-        savedPrompts={savedPrompts}
-        setSavedPrompts={setSavedPrompts}
-      />
-      <ActionEmitter />
-    </SavedPromptsProvider>
+    </>
   )
 }
 
