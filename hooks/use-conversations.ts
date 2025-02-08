@@ -1,15 +1,9 @@
-'use client';
-
 import { useCallback, useEffect } from 'react';
+
+import { Conversation } from '@prisma/client';
 
 import { useConversationsStore } from '@/hooks/store/conversations';
 import { renameConversation } from '@/server/actions/ai';
-
-type Conversation = {
-  id: string;
-  title: string;
-  // Add other properties as needed
-};
 
 async function fetchConversations(userId: string): Promise<Conversation[]> {
   const response = await fetch(`/api/conversations?userId=${userId}`);
@@ -67,11 +61,12 @@ export function useConversations(userId?: string) {
   }, [userId, setConversations, setLoading]);
 
   const deleteConversation = useCallback(
-    async (conversationId: string): Promise<void> => {
+    async (id: string): Promise<void> => {
       try {
         // Perform actual deletion first
-        const response = await fetch(`/api/chat/${conversationId}`, {
+        const response = await fetch('/api/chat', {
           method: 'DELETE',
+          body: JSON.stringify({ id }),
         });
 
         if (!response.ok) {
@@ -79,7 +74,7 @@ export function useConversations(userId?: string) {
         }
 
         // Only remove from store after successful deletion
-        removeConversation(conversationId);
+        removeConversation(id);
 
         // Force refresh to ensure consistency
         await refreshConversations();
@@ -93,9 +88,9 @@ export function useConversations(userId?: string) {
     [removeConversation, refreshConversations],
   );
 
-  const handleRename = async (conversationId: string, newTitle: string) => {
+  const handleRename = async (id: string, newTitle: string) => {
     try {
-      const renameResponse = await renameConversation({ id: conversationId, title: newTitle });
+      const renameResponse = await renameConversation({ id, title: newTitle });
       await refreshConversations();
     } catch (error) {
       console.error('Error renaming conversation:', error);
@@ -114,3 +109,4 @@ export function useConversations(userId?: string) {
     markAsRead,
   };
 }
+

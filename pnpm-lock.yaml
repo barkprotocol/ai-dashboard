@@ -137,8 +137,11 @@ importers:
       '@solana/web3.js':
         specifier: latest
         version: 1.98.0(bufferutil@4.0.9)(encoding@0.1.13)(utf-8-validate@5.0.10)
+      '@supabase/auth-helpers-nextjs':
+        specifier: ^0.10.0
+        version: 0.10.0(@supabase/supabase-js@2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@supabase/supabase-js':
-        specifier: latest
+        specifier: ^2.48.1
         version: 2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@types/react':
         specifier: latest
@@ -3283,6 +3286,18 @@ packages:
 
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
+
+  '@supabase/auth-helpers-nextjs@0.10.0':
+    resolution: {integrity: sha512-2dfOGsM4yZt0oS4TPiE7bD4vf7EVz7NRz/IJrV6vLg0GP7sMUx8wndv2euLGq4BjN9lUCpu6DG/uCC8j+ylwPg==}
+    deprecated: This package is now deprecated - please use the @supabase/ssr package instead.
+    peerDependencies:
+      '@supabase/supabase-js': ^2.39.8
+
+  '@supabase/auth-helpers-shared@0.7.0':
+    resolution: {integrity: sha512-FBFf2ei2R7QC+B/5wWkthMha8Ca2bWHAndN+syfuEUUfufv4mLcAgBCcgNg5nJR8L0gZfyuaxgubtOc9aW3Cpg==}
+    deprecated: This package is now deprecated - please use the @supabase/ssr package instead.
+    peerDependencies:
+      '@supabase/supabase-js': ^2.39.8
 
   '@supabase/auth-js@2.67.3':
     resolution: {integrity: sha512-NJDaW8yXs49xMvWVOkSIr8j46jf+tYHV0wHhrwOaLLMZSFO4g6kKAf+MfzQ2RaD06OCUkUHIzctLAxjTgEVpzw==}
@@ -13285,6 +13300,17 @@ snapshots:
       - utf-8-validate
 
   '@stablelib/base64@1.0.1': {}
+
+  '@supabase/auth-helpers-nextjs@0.10.0(@supabase/supabase-js@2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))':
+    dependencies:
+      '@supabase/auth-helpers-shared': 0.7.0(@supabase/supabase-js@2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))
+      '@supabase/supabase-js': 2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      set-cookie-parser: 2.7.1
+
+  '@supabase/auth-helpers-shared@0.7.0(@supabase/supabase-js@2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))':
+    dependencies:
+      '@supabase/supabase-js': 2.48.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      jose: 4.15.9
 
   '@supabase/auth-js@2.67.3':
     dependencies:
