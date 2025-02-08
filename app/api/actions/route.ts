@@ -18,8 +18,13 @@ const mockActions = [
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await verifyUser()
-    const userId = session?.data?.data?.id
+    const result = await verifyUser(req)
+
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 401 })
+    }
+
+    const userId = result.user.id
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

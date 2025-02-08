@@ -2,6 +2,7 @@ import config from "../package.json"
 
 export const APP_VERSION = config.version
 export const IS_BETA = true
+export const IS_TRIAL_ENABLED = process.env.NEXT_PUBLIC_TRIAL_ENABLED === "true"
 
 export const RPC_URL = process.env.NEXT_PUBLIC_HELIUS_RPC_URL || "https://api.mainnet-beta.solana.com"
 

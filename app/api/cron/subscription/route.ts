@@ -1,8 +1,8 @@
-import { PaymentStatus } from "@prisma/client"
+import { PaymentStatus } from "@/types/subscription"
 import prisma from "@/lib/prisma"
 import { searchWalletAssets } from "@/lib/solana/helius"
 import { canAffordSubscription, getSubPriceFloat } from "@/lib/utils"
-import { transferTokenServer } from "../../../../server/utils"
+import { transferTokenServer } from "@/app/server/utils"
 import { SOL_MINT } from "@/types/helius/portfolio"
 import { PaymentError, PaymentErrorCode } from "@/types/subscription"
 
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
   console.log(`[cron/subscription] Fetched ${activeSubscriptions.length} subscriptions to process`)
 
-  const paymentPromises = activeSubscriptions.map(async (subscription) => {
+  const paymentPromises = activeSubscriptions.map(async (subscription: { id: any; user: { wallets: any[] }; userId: any; nextPaymentDate: string | number | Date }) => {
     console.log(`[cron/subscription:${subscription.id}] Processing subscription`)
 
     // First, create a new subscription payment record
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
 
   console.log(`[cron/subscription] Fetched ${inactiveSubscriptions.length} subscriptions to cancel`)
 
-  const cancellationPromises = inactiveSubscriptions.map(async (subscription) => {
+  const cancellationPromises = inactiveSubscriptions.map(async (subscription: { id: any }) => {
     console.log(`[cron/subscription:${subscription.id}] Cancelling subscription`)
 
     // Mark the subscription as inactive
