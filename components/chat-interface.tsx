@@ -1,20 +1,25 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { ImageIcon, SendHorizontal, Link2 } from "lucide-react"
+import { ImageIcon, SendHorizontal, Link2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChatSkeleton } from "@/components/chat-skeleton"
 import { defaultSystemPrompt, defaultModel } from "@/lib/ai-config"
+import React from 'react'
 
 interface Message {
   role: "user" | "ai" | "system"
   content: string
 }
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  conversationId?: string;
+}
+
+export function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([{ role: "system", content: defaultSystemPrompt }])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -24,7 +29,7 @@ export function ChatInterface() {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
-  }, [scrollAreaRef])
+  }, [scrollAreaRef.current]) // Updated dependency
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -132,4 +137,3 @@ export function ChatInterface() {
     </div>
   )
 }
-
