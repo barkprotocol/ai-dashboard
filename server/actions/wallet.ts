@@ -1,124 +1,208 @@
-'use server';
+"use server"
 
-import { PublicKey } from '@solana/web3.js';
-import { z } from 'zod';
+import { PublicKey } from "@solana/web3.js"
+import { z } from "zod"
 
-import prisma from '@/lib/prisma';
-import { ActionResponse, actionClient } from '@/lib/safe-action';
-import { decryptPrivateKey } from '@/lib/solana/wallet-generator';
-import { EmbeddedWallet } from '@/types/db';
+import { supabase } from "@/lib/db"
+import { type ActionResponse, actionClient } from "@/lib/safe-action"
+import { generateEncryptedKeyPair } from "@/lib/solana/wallet-generator"
+import type { EmbeddedWallet } from "@/types/db"
 
-import { retrieveAgentKit } from './ai';
-import { verifyUser } from './user';
+import { retrieveAgentKit } from "./ai"
+import { verifyUser } from "./user"
 
-export const listEmbeddedWallets = actionClient.action<
-  ActionResponse<EmbeddedWallet[]>
->(async () => {
-  const authResult = await verifyUser();
-  const userId = authResult?.data?.data?.id;
+export const createWallet = actionClient.action<ActionResponse<EmbeddedWallet>>(async () => {
+  const authResult = await verifyUser()
+  const userId = authResult?.data?.data?.id
 
   if (!userId) {
     return {
       success: false,
-      error: 'Authentication failed',
-    };
+      error: "Authentication failed",
+    }
   }
 
-  const wallets = await prisma.wallet.findMany({
-    where: { ownerId: userId },
-  });
+  try {
+    const { publicKey, encryptedPrivateKey } = await generateEncryptedKeyPair()
+    const { data: wallet, error } = await supabase
+      .from("user_wallets")
+      .insert({
+        ownerId: userId,
+        name: "New Wallet",
+        publicKey,
+        encryptedPrivateKey,
+        active: false,
+        chain: "SOLANA",
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return {
+      success: true,
+      data: wallet,
+    }
+  } catch (error) {
+    console.error("Error creating wallet:", error)
+    return {
+      success: false,
+      error: "Failed to create wallet",
+    }
+  }
+})
+
+export const getWallet = actionClient
+  .schema(z.object({ id: z.string() }))
+  .action<ActionResponse<EmbeddedWallet>>(async ({ parsedInput: { id } }) => {
+    const authResult = await verifyUser()
+    const userId = authResult?.data?.data?.id
+
+    if (!userId) {
+      return {
+        success: false,
+        error: "Authentication failed",
+      }
+    }
+
+    const { data: wallet, error } = await supabase
+      .from("user_wallets")
+      .select("*")
+      .eq("id", id)
+      .eq("ownerId", userId)
+      .single()
+
+    if (error) {
+      return {
+        success: false,
+        error: "Wallet not found",
+      }
+    }
+
+    return {
+      success: true,
+      data: wallet,
+    }
+  })
+
+export const deleteWallet = actionClient
+  .schema(z.object({ id: z.string() }))
+  .action<ActionResponse<boolean>>(async ({ parsedInput: { id } }) => {
+    const authResult = await verifyUser()
+    const userId = authResult?.data?.data?.id
+
+    if (!userId) {
+      return {
+        success: false,
+        error: "Authentication failed",
+      }
+    }
+
+    try {
+      const { error } = await supabase.from("user_wallets").delete().eq("id", id).eq("ownerId", userId)
+
+      if (error) throw error
+
+      return {
+        success: true,
+        data: true,
+      }
+    } catch (error) {
+      console.error("Error deleting wallet:", error)
+      return {
+        success: false,
+        error: "Failed to delete wallet",
+      }
+    }
+  })
+
+export const setActiveWallet = actionClient
+  .schema(z.object({ id: z.string() }))
+  .action<ActionResponse<boolean>>(async ({ parsedInput: { id } }) => {
+    const authResult = await verifyUser()
+    const userId = authResult?.data?.data?.id
+
+    if (!userId) {
+      return {
+        success: false,
+        error: "Authentication failed",
+      }
+    }
+
+    try {
+      // Deactivate all wallets for this user
+      const { error } = await supabase.from("user_wallets").update({ active: false }).eq("ownerId", userId)
+
+      if (error) throw error
+
+      // Activate the selected wallet
+      const { error: activationError } = await supabase.from("user_wallets").update({ active: true }).eq("id", id)
+
+      if (activationError) throw activationError
+
+      return {
+        success: true,
+        data: true,
+      }
+    } catch (error) {
+      console.error("Error setting active wallet:", error)
+      return {
+        success: false,
+        error: "Failed to set active wallet",
+      }
+    }
+  })
+
+export const listEmbeddedWallets = actionClient.action<ActionResponse<EmbeddedWallet[]>>(async () => {
+  const authResult = await verifyUser()
+  const userId = authResult?.data?.data?.id
+
+  if (!userId) {
+    return {
+      success: false,
+      error: "Authentication failed",
+    }
+  }
+
+  const { data: wallets, error } = await supabase.from("user_wallets").select("*").eq("ownerId", userId)
+
+  if (error) {
+    return {
+      success: false,
+      error: "Failed to fetch wallets",
+    }
+  }
 
   return {
     success: true,
     data: wallets,
-  };
-});
+  }
+})
 
-export const getActiveWallet = actionClient.action<
-  ActionResponse<EmbeddedWallet>
->(async () => {
-  const authResult = await verifyUser();
-  const userId = authResult?.data?.data?.id;
+export const getActiveWallet = actionClient.action<ActionResponse<EmbeddedWallet>>(async () => {
+  const authResult = await verifyUser()
+  const userId = authResult?.data?.data?.id
 
   if (!userId) {
-    return { success: false, error: 'Unauthorized' };
+    return { success: false, error: "Unauthorized" }
   }
 
-  const wallet = await prisma.wallet.findFirst({
-    where: {
-      ownerId: userId,
-      active: true,
-    },
-  });
+  const { data: wallet, error } = await supabase
+    .from("user_wallets")
+    .select("*")
+    .eq("ownerId", userId)
+    .eq("active", true)
+    .single()
 
-  if (!wallet) {
-    return { success: false, error: 'Wallet not found' };
+  if (error || !wallet) {
+    return { success: false, error: "Wallet not found" }
   }
 
   return {
     success: true,
     data: wallet,
-  };
-});
-
-export const setActiveWallet = actionClient
-  .schema(z.object({ publicKey: z.string() }))
-  .action(async ({ parsedInput: { publicKey } }) => {
-    const authResult = await verifyUser();
-    const userId = authResult?.data?.data?.id;
-
-    if (!userId) {
-      return { success: false, error: 'Unauthorized' };
-    }
-
-    const wallet = await prisma.wallet.findFirst({
-      where: {
-        ownerId: userId,
-        publicKey,
-      },
-    });
-
-    if (!wallet) {
-      return { success: false, error: 'Wallet not found' };
-    }
-
-    const existingWallet = await prisma.wallet.findFirst({
-      where: {
-        ownerId: userId,
-        active: true,
-      },
-    });
-
-    if (existingWallet) {
-      await prisma.wallet.update({
-        where: {
-          ownerId_publicKey: {
-            ownerId: userId,
-            publicKey: existingWallet.publicKey,
-          },
-        },
-        data: {
-          active: false,
-        },
-      });
-    }
-
-    await prisma.wallet.update({
-      where: {
-        ownerId_publicKey: {
-          ownerId: userId,
-          publicKey,
-        },
-      },
-      data: {
-        active: true,
-      },
-    });
-
-    return {
-      success: true,
-    };
-  });
+  }
+})
 
 export const embeddedWalletSendSOL = actionClient
   .schema(
@@ -128,40 +212,49 @@ export const embeddedWalletSendSOL = actionClient
       amount: z.number(),
     }),
   )
-  .action<ActionResponse<string>>(
-    async ({ parsedInput: { walletId, recipientAddress, amount } }) => {
-      const authResult = await verifyUser();
-      const userId = authResult?.data?.data?.id;
-      if (!userId) {
-        return {
-          success: false,
-          error: 'Authentication failed',
-        };
+  .action<ActionResponse<string>>(async ({ parsedInput: { walletId, recipientAddress, amount } }) => {
+    const authResult = await verifyUser()
+    const userId = authResult?.data?.data?.id
+    if (!userId) {
+      return {
+        success: false,
+        error: "Authentication failed",
       }
-      const wallet = await prisma.wallet.findUnique({
-        where: { id: walletId },
-      });
-      if (!wallet || wallet.ownerId !== userId) {
-        return {
-          success: false,
-          error: 'Wallet not found',
-        };
+    }
+    const { data: wallet, error } = await supabase
+      .from("user_wallets")
+      .select("*")
+      .eq("id", walletId)
+      .eq("ownerId", userId)
+      .single()
+    if (error || !wallet) {
+      return {
+        success: false,
+        error: "Wallet not found",
       }
-      const agent = (await retrieveAgentKit({ walletId }))?.data?.data?.agent;
-      try {
-        const signature = await agent?.transfer(
-          new PublicKey(recipientAddress),
-          amount,
-        );
-        return {
-          success: true,
-          data: signature,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: 'Failed to send SOL (error: ' + error + ')',
-        };
+    }
+    const agent = (await retrieveAgentKit({ walletId }))?.data?.data?.agent
+    try {
+      const signature = await agent?.transfer(new PublicKey(recipientAddress), amount)
+      return {
+        success: true,
+        data: signature,
       }
-    },
-  );
+    } catch (error) {
+      return {
+        success: false,
+        error: "Failed to send SOL (error: " + error + ")",
+      }
+    }
+  })
+
+export type WalletActions = {
+  createWallet: typeof createWallet
+  getWallet: typeof getWallet
+  deleteWallet: typeof deleteWallet
+  setActiveWallet: typeof setActiveWallet
+  listEmbeddedWallets: typeof listEmbeddedWallets
+  getActiveWallet: typeof getActiveWallet
+  embeddedWalletSendSOL: typeof embeddedWalletSendSOL
+}
+

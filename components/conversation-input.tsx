@@ -14,8 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { uploadImage } from "@/lib/upload"
 import { cn } from "@/lib/utils"
-import { getSavedPrompts, setSavedPromptLastUsedAt } from "@/server/actions/saved-prompt"
-import type { SavedPrompt } from "@/types"
+import { getSavedPrompts, SavedPromp, setSavedPromptLastUsedAt } from "@/server/actions/saved-prompt"
 
 interface ConversationInputProps {
   value: string

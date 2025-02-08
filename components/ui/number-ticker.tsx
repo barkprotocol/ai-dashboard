@@ -1,6 +1,9 @@
+"use client"
+
 import { useMotionValue, animate } from "framer-motion"
 import { useEffect, useCallback, useRef } from "react"
 import { useInView } from "react-intersection-observer"
+import { cn } from "@/lib/utils"
 
 interface NumberTickerProps {
   value: number
@@ -13,7 +16,7 @@ interface NumberTickerProps {
   ease?: string
 }
 
-export default function NumberTicker({
+export function NumberTicker({
   value,
   direction = "up",
   delay = 0,
@@ -24,8 +27,9 @@ export default function NumberTicker({
   ease = "easeOut",
 }: NumberTickerProps) {
   const ref = useRef<HTMLSpanElement>(null)
-  const [refInView, isInView] = useInView({
+  const [refInView, inView] = useInView({
     threshold: 0.5,
+    triggerOnce: true,
   })
 
   const motionValue = useMotionValue(direction === "down" ? value : 0)
@@ -40,7 +44,7 @@ export default function NumberTicker({
   )
 
   useEffect(() => {
-    if (!isInView || typeof value !== "number") return
+    if (!inView || typeof value !== "number") return
 
     const timeoutId = setTimeout(() => {
       const controls = animate(motionValue, direction === "down" ? 0 : value, {
@@ -48,10 +52,7 @@ export default function NumberTicker({
         ease,
         onUpdate: (latest) => {
           if (ref.current) {
-            ref.current.textContent = Intl.NumberFormat(locale, {
-              minimumFractionDigits: decimalPlaces,
-              maximumFractionDigits: decimalPlaces,
-            }).format(Number(latest.toFixed(decimalPlaces)))
+            ref.current.textContent = formatNumber(latest)
           }
         },
       })
@@ -63,11 +64,11 @@ export default function NumberTicker({
     }, delay * 1000)
 
     return () => clearTimeout(timeoutId)
-  }, [motionValue, isInView, delay, value, direction, duration, decimalPlaces, locale, ease])
+  }, [motionValue, inView, delay, value, direction, duration, formatNumber, ease])
 
   return (
-    <span className={className} ref={refInView} ref={ref}>
-      0
+    <span className={cn("inline-block", className)} ref={refInView}>
+      <span ref={ref}>0</span>
     </span>
   )
 }

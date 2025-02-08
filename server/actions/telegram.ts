@@ -1,6 +1,5 @@
 import { z } from "zod"
-
-import { type ActionResponse, actionClient } from "@/lib/safe-action"
+import { createSafeAction, type ActionResponse } from "@/lib/safe-action"
 import { dbGetUserTelegramChat, dbUpdateUserTelegramChat } from "@/server/db/queries"
 
 import { verifyUser } from "./user"
@@ -99,7 +98,7 @@ export async function checkUserTelegramSetup(username?: string, userId?: string)
   return { success: true, userId, username: finalUsername, chatId, botId }
 }
 
-export const verifyTelegramSetupAction = actionClient
+export const verifyTelegramSetupAction = createSafeAction
   .schema(
     z.object({
       username: z.string().optional(),
@@ -127,7 +126,7 @@ export const verifyTelegramSetupAction = actionClient
     }
   })
 
-export const sendTelegramNotification = actionClient
+export const sendTelegramNotification = createSafeAction
   .schema(
     z.object({
       username: z.string().optional(),

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import { USE_MOCK_DATA } from "@/lib/prisma"
-import { verifyUser } from "@/server/actions/user"
+import { USE_MOCK_DATA } from "@/lib/supabase"
+import { verifyUser } from "@/app/api/user/route"
 import { dbGetUserActions } from "@/server/db/queries"
 
 // Mock data

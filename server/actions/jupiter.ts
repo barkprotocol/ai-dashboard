@@ -1,5 +1,6 @@
 import { cache } from "react"
 import { z } from "zod"
+import { createSafeAction } from "@/lib/safe-action"
 
 export interface JupiterToken {
   address: string
@@ -73,7 +74,7 @@ export interface TokenPriceResponse {
 }
 
 // Cache the fetch for 5 seconds
-export const getJupiterTokenPrice = cache(
+export const getJupiterTokenPrice = createSafeAction(
   async (tokenAddress: string, showExtraInfo = true): Promise<TokenPrice | null> => {
     try {
       const response = await fetch(`https://api.jup.ag/price/v2?ids=${tokenAddress}&showExtraInfo=${showExtraInfo}`, {

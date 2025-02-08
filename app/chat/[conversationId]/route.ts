@@ -17,9 +17,9 @@ import { defaultModel, defaultSystemPrompt, defaultTools, getToolsFromRequiredTo
 import { MAX_TOKEN_MESSAGES } from "@/lib/constants"
 import { isValidTokenUsage, logWithTiming } from "@/lib/utils"
 import { getConfirmationResult, getUnconfirmedConfirmationMessage, handleConfirmation } from "@/lib/utils/ai"
-import { generateTitleFromUserMessage } from "@/server/actions/ai"
-import { getToolsFromOrchestrator } from "@/server/actions/orchestrator"
-import { verifyUser } from "@/server/actions/user"
+import { generateTitleFromUserMessage } from "@/app/api/ai/route"
+import { getToolsFromOrchestrator } from "@/app/api/orchestrator/route"
+import { verifyUser } from "@/app/api/user/route"
 import {
   dbCreateConversation,
   dbCreateMessages,

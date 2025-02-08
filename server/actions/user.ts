@@ -8,7 +8,7 @@ import type { WalletWithMetadata } from "@privy-io/server-auth"
 import { customAlphabet } from "nanoid"
 import { z } from "zod"
 
-import prisma from "@/lib/prisma"
+import { supabase } from "@/lib/db"
 import { type ActionResponse, actionClient } from "@/lib/safe-action"
 import { generateEncryptedKeyPair } from "@/lib/solana/wallet-generator"
 import type { EmbeddedWallet, PrismaUser } from "@/types/db"
@@ -33,101 +33,94 @@ const getOrCreateUser = actionClient
   .schema(z.object({ userId: z.string() }))
   .action<ActionResponse<PrismaUser>>(async ({ parsedInput: { userId } }) => {
     const generateReferralCode = async (): Promise<string> => {
-      const nanoid = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", 8) // 8-character alphanumeric
+      const nanoid = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890", 8)
 
-      const MAX_ATTEMPTS = 10 // Limit to prevent infinite loops
+      const MAX_ATTEMPTS = 10
       let attempts = 0
 
       while (attempts < MAX_ATTEMPTS) {
         const referralCode = nanoid()
-        const existingCode = await prisma.user.findUnique({
-          where: { referralCode },
-        })
+        const { data: existingCode } = await supabase
+          .from("users")
+          .select("referralCode")
+          .eq("referralCode", referralCode)
+          .single()
 
         if (!existingCode) {
-          return referralCode // Return the unique code
+          return referralCode
         }
 
         attempts++
       }
 
-      // Failsafe: throw an error if a unique code couldn't be generated
       throw new Error("Unable to generate a unique referral code after 10 attempts")
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { privyId: userId },
-      include: {
-        wallets: {
-          select: {
-            id: true,
-            ownerId: true,
-            name: true,
-            publicKey: true,
-            walletSource: true,
-            delegated: true,
-            active: true,
-            chain: true,
-          },
-          where: {
-            active: true,
-          },
-        },
-        subscription: {
-          include: {
-            payments: true,
-          },
-        },
-      },
-    })
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select(`
+        *,
+        wallets:user_wallets(
+          id, ownerId, name, publicKey, walletSource, delegated, active, chain
+        ),
+        subscription:user_subscriptions(
+          *,
+          payments:subscription_payments(*)
+        )
+      `)
+      .eq("privyId", userId)
+      .single()
 
     if (existingUser) {
-      // If the user exists but doesn't have a referralCode, generate one
       if (!existingUser.referralCode) {
         const referralCode = await generateReferralCode()
-        await prisma.user.update({
-          where: { id: existingUser.id },
-          data: { referralCode },
-        })
+        await supabase.from("users").update({ referralCode }).eq("id", existingUser.id)
         existingUser.referralCode = referralCode
       }
       return { success: true, data: existingUser }
     }
 
-    // Look up referralCode from cookie
     const cookieReferralCode = (await cookies()).get("referralCode")?.value
     let referringUserId: string | null = null
 
     if (cookieReferralCode) {
-      const referringUser = await prisma.user.findUnique({
-        where: { referralCode: cookieReferralCode },
-        select: { id: true },
-      })
+      const { data: referringUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("referralCode", cookieReferralCode)
+        .single()
 
       if (referringUser) {
         referringUserId = referringUser.id
       }
     }
 
-    // Create a new user if none exists
     const referralCode = await generateReferralCode()
-    const createdUser = await prisma.user.create({
-      data: {
-        privyId: userId,
-        referralCode,
-        referringUserId,
-      },
-    })
+    const { data: createdUser, error } = await supabase
+      .from("users")
+      .insert({ privyId: userId, referralCode, referringUserId })
+      .select()
+      .single()
+
+    if (error || !createdUser) {
+      throw new Error("Failed to create user")
+    }
 
     const { publicKey, encryptedPrivateKey } = await generateEncryptedKeyPair()
-    const initialWallet = await prisma.wallet.create({
-      data: {
+    const { data: initialWallet, error: walletError } = await supabase
+      .from("user_wallets")
+      .insert({
         ownerId: createdUser.id,
         name: "Default",
         publicKey,
         encryptedPrivateKey,
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (walletError || !initialWallet) {
+      throw new Error("Failed to create initial wallet")
+    }
 
     return {
       success: true,
@@ -168,24 +161,18 @@ export const verifyUser = actionClient.action<
 
   try {
     const claims = await PRIVY_SERVER_CLIENT.verifyAuthToken(token)
-    const user = await prisma.user.findUnique({
-      where: { privyId: claims.userId },
-      select: {
-        id: true,
-        degenMode: true,
-        privyId: true,
-        wallets: {
-          select: {
-            publicKey: true,
-          },
-          where: {
-            active: true,
-          },
-        },
-      },
-    })
+    const { data: user, error } = await supabase
+      .from("users")
+      .select(`
+        id,
+        degenMode,
+        privyId,
+        wallets:user_wallets(publicKey)
+      `)
+      .eq("privyId", claims.userId)
+      .single()
 
-    if (!user) {
+    if (error || !user) {
       return {
         success: false,
         error: "User not found",
@@ -253,21 +240,9 @@ export const syncEmbeddedWallets = actionClient.action<ActionResponse<{ wallets:
       const pubkey = w.address
       if (!pubkey) continue
 
-      await prisma.wallet.upsert({
-        where: {
-          ownerId_publicKey: {
-            ownerId: userData.id,
-            publicKey: pubkey,
-          },
-        },
-        update: {
-          name: "Privy Embedded",
-          walletSource: "PRIVY",
-          delegated: w.delegated ?? false,
-          publicKey: pubkey,
-          encryptedPrivateKey: undefined, // This will handle a case where a user imports a wallet to privy
-        },
-        create: {
+      await supabase
+        .from("user_wallets")
+        .upsert({
           ownerId: userData.id,
           name: "Privy Embedded",
           publicKey: pubkey,
@@ -276,26 +251,30 @@ export const syncEmbeddedWallets = actionClient.action<ActionResponse<{ wallets:
           delegated: w.delegated ?? false,
           active: false,
           encryptedPrivateKey: undefined,
-        },
-      })
+        })
+        .select()
     }
   } catch (error) {
     return { success: false, error: "Error retrieving updated user" }
   }
 
-  const userWallets = await prisma.wallet.findMany({
-    where: { ownerId: userData.id },
-    select: {
-      id: true,
-      publicKey: true,
-      walletSource: true,
-      delegated: true,
-      name: true,
-      ownerId: true,
-      active: true,
-      chain: true,
-    },
-  })
+  const { data: userWallets, error } = await supabase
+    .from("user_wallets")
+    .select(`
+      id,
+      publicKey,
+      walletSource,
+      delegated,
+      name,
+      ownerId,
+      active,
+      chain
+    `)
+    .eq("ownerId", userData.id)
+
+  if (error) {
+    return { success: false, error: "Error retrieving user wallets" }
+  }
 
   return { success: true, data: { wallets: userWallets } }
 })
@@ -304,7 +283,7 @@ export const getPrivyClient = actionClient.action(async () => PRIVY_SERVER_CLIEN
 
 export type UserUpdateData = {
   degenMode?: boolean
-  referralCode?: string // Add referralCode as an optional field
+  referralCode?: string
 }
 export async function updateUser(data: UserUpdateData) {
   try {
@@ -316,16 +295,16 @@ export async function updateUser(data: UserUpdateData) {
       return { success: false, error: "UNAUTHORIZED" }
     }
 
-    // Extract referralCode from the input data
     const { referralCode, ...updateFields } = data
 
-    // If referralCode is provided, validate and update referringUserId
     if (referralCode) {
-      const referringUser = await prisma.user.findUnique({
-        where: { referralCode },
-      })
+      const { data: referringUser, error } = await supabase
+        .from("users")
+        .select("id, referringUserId")
+        .eq("referralCode", referralCode)
+        .single()
 
-      if (!referringUser) {
+      if (error || !referringUser) {
         return { success: false, error: "Invalid referral code" }
       }
 
@@ -336,7 +315,6 @@ export async function updateUser(data: UserUpdateData) {
         }
       }
 
-      // Prevent getting referred by a user who has already been referred by you
       if (referringUser.referringUserId === userId) {
         return {
           success: false,
@@ -344,23 +322,25 @@ export async function updateUser(data: UserUpdateData) {
         }
       }
 
-      // Update referringUserId along with other fields
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
           ...updateFields,
           referringUserId: referringUser.id,
-        },
-      })
+        })
+        .eq("id", userId)
+
+      if (updateError) {
+        throw updateError
+      }
     } else {
-      // Update user without referral logic if no referralCode is provided
-      await prisma.user.update({
-        where: { id: userId },
-        data: updateFields,
-      })
+      const { error: updateError } = await supabase.from("users").update(updateFields).eq("id", userId)
+
+      if (updateError) {
+        throw updateError
+      }
     }
 
-    // Revalidate user cache
     revalidateTag(`user-${privyId}`)
     return { success: true }
   } catch (error) {
@@ -368,4 +348,6 @@ export async function updateUser(data: UserUpdateData) {
     return { success: false, error: "Failed to update user" }
   }
 }
+
+export type { PrivyClient } from "@privy-io/server-auth"
 

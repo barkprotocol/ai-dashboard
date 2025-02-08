@@ -1,51 +1,41 @@
-'use client';
+"use client"
+import { ArrowUpRight } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { formatNumber } from "@/lib/utils"
 
-import { formatNumber } from '@/lib/format';
-import { BirdeyeTrader } from '@/server/actions/birdeye';
-
-export default function TopTrader({
-  trader,
-  rank,
-}: {
-  trader: BirdeyeTrader;
-  rank: number;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl bg-muted/50 p-4">
-      <div className="flex items-center gap-3">
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-background/50">
-          <div className="flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground">
-            #{rank}
-          </div>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <a
-              href={`https://solscan.io/account/${trader.address}#portfolio`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="truncate font-mono text-base font-medium"
-            >
-              {trader.address.slice(0, 4)}...{trader.address.slice(-4)}
-            </a>
-            <span
-              className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-medium ${
-                trader.pnl >= 0
-                  ? 'bg-green-500/10 text-green-500'
-                  : 'bg-red-500/10 text-red-500'
-              }`}
-            >
-              {trader.pnl >= 0 ? '+' : ''}
-              {formatNumber(trader.pnl, 'percent', 2)}
-            </span>
-          </div>
-          <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
-            <span>Vol: {formatNumber(trader.volume, 'currency')}</span>
-            <span className="h-1 w-1 rounded-full bg-border" />
-            <span>Trades: {formatNumber(trader.tradeCount, 'number')}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+interface TopTraderProps {
+  trader: {
+    name: string
+    avatar: string
+    profit: number
+    trades: number
+  }
 }
+
+export function TopTrader({ trader }: TopTraderProps) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">Top Trader</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center space-x-4">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={trader.avatar} alt={trader.name} />
+            <AvatarFallback>{trader.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1 space-y-1">
+            <p className="text-sm font-medium leading-none">{trader.name}</p>
+            <p className="text-sm text-muted-foreground">{trader.trades} trades</p>
+          </div>
+          <div className="flex items-center space-x-1 text-green-500">
+            <ArrowUpRight className="h-4 w-4" />
+            <span className="text-sm font-medium">{formatNumber(trader.profit, "percent")}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+

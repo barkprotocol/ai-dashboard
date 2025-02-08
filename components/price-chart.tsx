@@ -1,21 +1,8 @@
 'use client';
 
 import React from 'react';
-
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatChartPrice } from '@/lib/format';
 import { TIMEFRAME } from '@/types/chart';
 
@@ -32,32 +19,22 @@ interface PriceChartProps {
 }
 
 function formatDate(time: number, timeFrame: TIMEFRAME) {
+  const date = new Date(time);
   switch (timeFrame) {
     case TIMEFRAME.DAYS:
-      return new Date(time).toLocaleDateString(undefined, {
-        month: 'short',
-        day: '2-digit',
-      });
+      return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
     case TIMEFRAME.HOURS:
-      return new Date(time).toLocaleTimeString();
+      return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     default:
-      return new Date(time).toLocaleDateString(undefined, {
-        month: 'short',
-        day: '2-digit',
-      });
+      return date.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
   }
 }
 
 function shortenAddress(addr: string) {
-  if (addr.length <= 10) return addr;
-  return addr.slice(0, 4) + '...' + addr.slice(-4);
+  return addr.length <= 10 ? addr : `${addr.slice(0, 4)}...${addr.slice(-4)}`;
 }
 
-export default function PriceChart({
-  data,
-  timeFrame,
-  tokenInfo: { symbol, address },
-}: PriceChartProps) {
+export default function PriceChart({ data, timeFrame, tokenInfo: { symbol, address } }: PriceChartProps) {
   const transformedData = data.map((point) => ({
     date: formatDate(point.time, timeFrame),
     price: point.value,
@@ -75,52 +52,44 @@ export default function PriceChart({
           </CardDescription>
         </div>
       </CardHeader>
-
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-        <ChartContainer
-          config={{
-            price: {
-              label: 'Price',
-              color: 'hsl(var(--chart-1))',
-            },
-          }}
-        >
+      <CardContent className="p-6">
+        <ResponsiveContainer width="100%" height={300}>
           <LineChart data={transformedData}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={true}
-              axisLine={true}
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="date" tickLine={false} axisLine={true} tickMargin={8} />
+            <YAxis
+              tickFormatter={(value) => formatChartPrice(value)}
+              domain={['auto', 'auto']}
+              tickLine={false}
+              axisLine={false}
               tickMargin={8}
             />
-            <YAxis
-              domain={[
-                (dataMin: number) => dataMin * 0.95,
-                (dataMax: number) => dataMax * 1.05,
-              ]}
-              tickFormatter={(val) => formatChartPrice(val)}
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  formatter={(value) => {
-                    return formatChartPrice(Number(value));
-                  }}
-                />
-              }
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="rounded-lg bg-background p-2 shadow-md">
+                      <p className="text-sm font-medium text-foreground">{payload[0].payload.date}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Price: {formatChartPrice(payload[0].value as number)}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
             />
             <Line
-              dataKey="price"
-              strokeWidth={2}
               type="monotone"
+              dataKey="price"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4 }}
-              stroke="hsl(var(--chart-1))"
+              activeDot={{ r: 4, strokeWidth: 2 }}
             />
           </LineChart>
-        </ChartContainer>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );
 }
-
