@@ -182,6 +182,9 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
+      decrypt:
+        specifier: ^0.0.1
+        version: 0.0.1
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.0.0)
@@ -5281,6 +5284,9 @@ packages:
   decompress-response@6.0.0:
     resolution: {integrity: sha512-aW35yZM6Bb/4oJlZncMH2LCoZtJXTRxES17vE3hoRiowU2kWHaJKFkSBDnDR+cm9J+9QhXmREyIfv0pji9ejCQ==}
     engines: {node: '>=10'}
+
+  decrypt@0.0.1:
+    resolution: {integrity: sha512-A01C44Nh51Z49kMQgUT5LfpqDT2+9xpVqI0XVpDWQAzVVmFzAY+OefxJSMBUKeFiWPDjyUZtS/GTmBRnIpeZbQ==}
 
   deep-eql@5.0.2:
     resolution: {integrity: sha512-h5k/5U50IJJFpzfL6nO9jaaumfjO/f2NjK/oYB2Djzm4p9L+3T9qWpZqZ2hAbLPuuYq9wrU08WQyBTL5GbPk5Q==}
@@ -17406,6 +17412,8 @@ snapshots:
   decompress-response@6.0.0:
     dependencies:
       mimic-response: 3.1.0
+
+  decrypt@0.0.1: {}
 
   deep-eql@5.0.2: {}
 

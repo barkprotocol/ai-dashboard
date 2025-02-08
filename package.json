@@ -76,6 +76,7 @@
     "cmdk": "1.0.0",
     "crypto-browserify": "^3.12.1",
     "date-fns": "^4.1.0",
+    "decrypt": "^0.0.1",
     "embla-carousel-react": "8.5.1",
     "framer-motion": "latest",
     "helius-sdk": "^1.4.2",

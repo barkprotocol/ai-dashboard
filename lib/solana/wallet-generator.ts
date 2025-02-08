@@ -1,7 +1,6 @@
 "use server"
 
 import bs58 from "bs58"
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto"
 
 /**
  * Generate encrypted keypair
@@ -45,39 +44,57 @@ async function generateExposedKeyPair(): Promise<{ publicKey: string; privateKey
  * Wallet encryption tool class
  */
 class WalletEncryption {
-  private static readonly algorithm = "aes-256-cbc"
-  private static readonly encryptionKey = Buffer.from(process.env.WALLET_ENCRYPTION_KEY || "", "utf-8").subarray(0, 32)
-  private static readonly ivLength = 16
+  private static readonly algorithm = "AES-GCM"
+  private static readonly ivLength = 12
 
   static async encrypt(source: string): Promise<string> {
-    if (!this.encryptionKey.length) {
-      throw new Error("Encryption key is not set")
-    }
+    const iv = crypto.getRandomValues(new Uint8Array(this.ivLength))
+    const encodedSource = new TextEncoder().encode(source)
 
-    const iv = randomBytes(this.ivLength)
-    const cipher = createCipheriv(this.algorithm, this.encryptionKey, iv)
-    const encrypted = Buffer.concat([cipher.update(source, "utf8"), cipher.final()])
-    const result = Buffer.concat([iv, encrypted])
-    return result.toString("base64")
+    const key = await this.getEncryptionKey()
+    const encrypted = await crypto.subtle.encrypt({ name: this.algorithm, iv }, key, encodedSource)
+
+    const encryptedArray = new Uint8Array(encrypted)
+    const result = new Uint8Array(iv.length + encryptedArray.length)
+    result.set(iv)
+    result.set(encryptedArray, iv.length)
+
+    return btoa(String.fromCharCode.apply(null, result as unknown as number[]))
   }
 
   static async decrypt(encrypted: string): Promise<string> {
-    if (!this.encryptionKey.length) {
-      throw new Error("Encryption key is not set")
-    }
-
     if (!encrypted) {
       throw new Error("Missing encrypted private key")
     }
 
-    const encryptedBuffer = Buffer.from(encrypted, "base64")
-    const iv = encryptedBuffer.subarray(0, this.ivLength)
-    const encryptedContent = encryptedBuffer.subarray(this.ivLength)
+    const encryptedBuffer = Uint8Array.from(atob(encrypted), (c) => c.charCodeAt(0))
+    const iv = encryptedBuffer.slice(0, this.ivLength)
+    const encryptedContent = encryptedBuffer.slice(this.ivLength)
 
-    const decipher = createDecipheriv(this.algorithm, this.encryptionKey, iv)
-    const decrypted = Buffer.concat([decipher.update(encryptedContent), decipher.final()])
+    const key = await this.getEncryptionKey()
+    const decrypted = await crypto.subtle.decrypt({ name: this.algorithm, iv }, key, encryptedContent)
 
-    return decrypted.toString("utf8")
+    return new TextDecoder().decode(decrypted)
+  }
+
+  private static async getEncryptionKey(): Promise<CryptoKey> {
+    const encoder = new TextEncoder()
+    const keyMaterial = encoder.encode(process.env.WALLET_ENCRYPTION_KEY || "")
+
+    return crypto.subtle.importKey("raw", keyMaterial, { name: "PBKDF2" }, false, ["deriveKey"]).then((key) =>
+      crypto.subtle.deriveKey(
+        {
+          name: "PBKDF2",
+          salt: encoder.encode("salt"),
+          iterations: 100000,
+          hash: "SHA-256",
+        },
+        key,
+        { name: this.algorithm, length: 256 },
+        false,
+        ["encrypt", "decrypt"],
+      ),
+    )
   }
 }
 
