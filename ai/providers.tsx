@@ -4,10 +4,13 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 
+import { Card } from '@/components/ui/card';
+
 import { actionTools } from './generic/action';
 import { jinaTools } from './generic/jina';
 import { telegramTools } from './generic/telegram';
 import { utilTools } from './generic/util';
+import { birdeyeTools } from './solana/birdeye';
 import { chartTools } from './solana/chart';
 import { definedTools } from './solana/defined-fi';
 import { dexscreenerTools } from './solana/dexscreener';
@@ -15,7 +18,6 @@ import { jupiterTools } from './solana/jupiter';
 import { magicEdenTools } from './solana/magic-eden';
 import { pumpfunTools } from './solana/pumpfun';
 import { solanaTools } from './solana/solana';
-import { birdeyeTools } from './solana/birdeye';
 
 const usingAnthropic = !!process.env.ANTHROPIC_API_KEY;
 
@@ -26,24 +28,25 @@ const openai = createOpenAI({
   baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
   apiKey: process.env.OPENAI_API_KEY,
   compatibility: 'strict',
-  fetch: async (url, options) => {
-    const body = JSON.parse(options!.body! as string);
+  ...(process.env.OPENAI_BASE_URL?.includes('openrouter.ai') && {
+    fetch: async (url, options) => {
+      if (!options?.body) return fetch(url, options);
 
-    // attach openrouter provider order to body
-    const modifiedBody = {
-      ...body,
-      provider: {
-        order: ['Anthropic', 'OpenAI'],
-        allow_fallbacks: false,
-      },
-    }
-    
-    options!.body = JSON.stringify(modifiedBody);
+      const body = JSON.parse(options.body as string);
 
-    // console.log(options!.body);
+      const modifiedBody = {
+        ...body,
+        provider: {
+          order: ['Anthropic', 'OpenAI'],
+          allow_fallbacks: false,
+        },
+      };
 
-    return await fetch(url, options);
-  },
+      options.body = JSON.stringify(modifiedBody);
+
+      return fetch(url, options);
+    },
+  }),
 });
 
 export const orchestratorModel = openai('gpt-4o-mini');
@@ -51,7 +54,7 @@ export const orchestratorModel = openai('gpt-4o-mini');
 const openAiModel = openai(process.env.OPENAI_MODEL_NAME || 'gpt-4o');
 
 export const defaultSystemPrompt = `
-Your name is BARK (Agent).
+Your name is Neur (Agent).
 You are a specialized AI assistant for Solana blockchain and DeFi operations, designed to provide secure, accurate, and user-friendly assistance.
 
 Critical Rules:
@@ -61,6 +64,7 @@ Critical Rules:
   Respond only with something like:
      - "Take a look at the results above"
 - Always use the \`searchToken\` tool to get the correct token mint first and ask for user confirmation.
+- Do not attempt to call a tool that you have not been provided, let the user know that the requested action is not supported.
 
 Confirmation Handling:
 - Before executing any tool where the parameter "requiresConfirmation" is true or the description contains the term "requiresConfirmation":
@@ -94,8 +98,8 @@ Response Formatting:
 - Use an abbreviated format for transaction signatures
 
 Common knowledge:
-- { token: BARK, description: The native token of BARK Protocol, twitter: @bark_protocol, website: https://barkprotocol.net/, address: 2NTvEssJ2i998V2cMGT4Fy3JhyFnAzHFonDo9dbAkVrg }
-- { user: BARK Protocol, description: Revolutionizing charitable giving on the Solana blockchain, twitter: @bark_protocol, wallet: BARKkeAwhTuFzcLHX4DjotRsmjXQ1MshGrZbn1CUQqMo }\
+- { token: NEUR, description: The native token of Neur, twitter: @neur_sh, website: https://neur.sh/, address: 3N2ETvNpPNAxhcaXgkhKoY1yDnQfs41Wnxsx5qNJpump }
+- { user: toly, description: Co-Founder of Solana Labs, twitter: @aeyakovenko, wallet: toly.sol }\
 
 Realtime knowledge:
 - { approximateCurrentTime: ${new Date().toISOString()}}
@@ -117,14 +121,17 @@ export interface ToolConfig {
   agentKit?: any;
   userId?: any;
   requiresConfirmation?: boolean;
+  requiredEnvVars?: string[];
 }
 
 export function DefaultToolResultRenderer({ result }: { result: unknown }) {
   if (result && typeof result === 'object' && 'error' in result) {
     return (
-      <div className="mt-2 pl-3.5 text-sm text-destructive">
-        {String((result as { error: unknown }).error)}
-      </div>
+      <Card className="bg-card p-4">
+        <div className="pl-3.5 text-sm">
+          {String((result as { error: unknown }).error)}
+        </div>
+      </Card>
     );
   }
 
@@ -151,6 +158,30 @@ export const defaultTools: Record<string, ToolConfig> = {
   ...telegramTools,
   ...birdeyeTools,
 };
+
+export function filterTools(
+  tools: Record<string, ToolConfig>,
+): Record<string, ToolConfig> {
+  const disabledTools = process.env.NEXT_PUBLIC_DISABLED_TOOLS
+    ? JSON.parse(process.env.NEXT_PUBLIC_DISABLED_TOOLS)
+    : [];
+
+  return Object.fromEntries(
+    Object.entries(tools).filter(([toolName, toolConfig]) => {
+      if (disabledTools.includes(toolName)) {
+        return false;
+      }
+      if (toolConfig.requiredEnvVars) {
+        for (const envVar of toolConfig.requiredEnvVars) {
+          if (!process.env[envVar] || process.env[envVar] == '') {
+            return false;
+          }
+        }
+      }
+      return true;
+    }),
+  );
+}
 
 export const coreTools: Record<string, ToolConfig> = {
   ...actionTools,
@@ -179,7 +210,8 @@ export const toolsets: Record<
   },
   traderTools: {
     tools: ['birdeyeTools'],
-    description: 'Tools for analyzing and tracking traders and trades on Solana DEXes.',
+    description:
+      'Tools for analyzing and tracking traders and trades on Solana DEXes.',
   },
   financeTools: {
     tools: ['definedTools'],
@@ -208,7 +240,7 @@ export const toolsets: Record<
 };
 
 export const orchestrationPrompt = `
-You are BARK, an AI assistant specialized in Solana blockchain and DeFi operations.
+You are Neur, an AI assistant specialized in Solana blockchain and DeFi operations.
 
 Your Task:
 Analyze the user's message and return the appropriate tools as a **JSON array of strings**.  
@@ -233,11 +265,13 @@ export function getToolConfig(toolName: string): ToolConfig | undefined {
 export function getToolsFromRequiredTools(
   toolNames: string[],
 ): Record<string, ToolConfig> {
+  const enabledTools = filterTools(defaultTools);
   return toolNames.reduce((acc: Record<string, ToolConfig>, toolName) => {
-    const tool = defaultTools[toolName];
+    const tool = enabledTools[toolName];
     if (tool) {
       acc[toolName] = tool;
     }
     return acc;
   }, {});
 }
+

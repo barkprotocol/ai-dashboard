@@ -46,3 +46,4 @@ export async function getUserID(accessToken: string): Promise<string> {
   const data = await response.json();
   return data.id;
 }
+

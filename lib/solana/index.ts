@@ -9,7 +9,6 @@ import {
 } from '@solana/web3.js';
 
 import { RPC_URL } from '../constants';
-import { PhantomProvider } from '@/app/types/phantom';
 
 export const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 
@@ -186,3 +185,4 @@ export class SolanaUtils {
     }
   }
 }
+

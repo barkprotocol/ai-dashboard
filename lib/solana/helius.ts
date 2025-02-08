@@ -2,15 +2,15 @@ import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 import { chunkArray } from '@/lib/utils';
 import rawKnownAddresses from '@/lib/utils/known-addresses.json';
-import { FungibleToken } from '@/app/types/helius/fungibleToken';
-import { NonFungibleToken } from '@/app/types/helius/nonFungibleToken';
+import { FungibleToken } from '@/types/helius/fungibleToken';
+import { NonFungibleToken } from '@/types/helius/nonFungibleToken';
 
 import { RPC_URL } from '../constants';
 
 export interface Holder {
   owner: string;
   balance: number;
-  classification?: string; // optional, assigned later
+  classification?: string;
 }
 
 interface MintInfo {
@@ -141,6 +141,19 @@ export const searchWalletAssets: (walletAddress: string) => Promise<{
             links: {
               image:
                 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1/logo.png',
+            },
+          },
+        };
+      }
+      if (item.token_info.price_info === undefined) {
+        return {
+          ...item,
+          token_info: {
+            ...item.token_info,
+            price_info: {
+              price_per_token: 0,
+              total_price: 0,
+              currency: '$',
             },
           },
         };
@@ -473,3 +486,4 @@ export async function getHoldersClassification(
     totalSupply,
   };
 }
+

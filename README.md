@@ -1,39 +1,56 @@
-# BARK | AI Dashboard
-v0.1.0-beta
+# BARK Dashboard and Chat Application  
+**v0.1.0-beta**
 
-Elevate your DeFi experience with BARK AI Agent & Chatbot. Harness the power of artificial intelligence to optimize your Solana investments, execute smart trades, and navigate the complexities of decentralized finance with unprecedented ease and precision.
+BARK is a Next.js–based dashboard and chat application built for the Solana blockchain. It combines real-time portfolio tracking, interactive charts, and AI-powered insights to elevate your decentralized finance (DeFi) experience.
 
-## Dashboard Overview
+---
 
-The dashboard offers an intuitive interface for managing token trades, analyzing real-time price data, and gaining actionable insights powered by AI. Built with Next.js and Shadcn UI, it ensures a seamless and responsive user experience.
+## Overview
 
-## AI Trading Agent
+BARK transforms how you interact with the Solana ecosystem by offering:
 
-AI Trading Agent is a React-based application that allows users to execute token trades using AI-powered price analysis across two decentralized exchanges (Jupiter and Raydium). The application is built with Next.js and integrates with the Solana blockchain.
+- **AI-Driven Assistance & Chat**: Communicate with our AI agent to get instant insights and smart trade recommendations.
+- **Seamless Token Trading**: Execute token trades with confidence using AI-powered analysis that fetches and compares real-time data from Jupiter and Raydium decentralized exchanges.
+- **Comprehensive Dashboard**: Monitor your portfolio and market trends with an intuitive, responsive interface built with Next.js and Shadcn UI.
+
+*Note: All API endpoints—including those for add API functions, cron jobs, chat interactions, and wallet/portfolio operations—are organized as `route.ts` files within their respective directories for consistency and maintainability.*
+
+---
 
 ## Features
 
-- **Dashboard Interface**: Intuitive, real-time trading insights at your fingertips.
-- **Token Selection**: Users can select tokens to trade using a dropdown menu populated with token metadata.
-- **Real-Time Price Analysis**: Fetches and compares prices from Jupiter and Raydium DEXs.
-- **AI-Powered Insights**: Analyzes prices to choose the best trading option.
-- **User Notifications**: Provides success or error feedback during the trading process.
-- **Responsive Design**: Optimized for different screen sizes.
-- **Privy Integration**: Enhances privacy and user data security with Privy.
+- **Real-Time Portfolio Tracking**  
+  Stay up-to-date with live data and interactive charts displaying your Solana assets.
+
+- **AI-Powered Insights**  
+  Leverage our integrated chat interface to receive actionable market insights and trading advice.
+
+- **Intuitive Token Trading**  
+  Select tokens easily from a dynamically populated dropdown and execute trades backed by real-time price analysis from both Jupiter and Raydium.
+
+- **Responsive & User-Friendly Design**  
+  Enjoy a seamless experience on any device, enhanced by robust user authentication and a clean, modern UI.
+
+- **Secure Integration**  
+  Protect your data with enhanced security features powered by Privy.
+
+---
 
 ## Prerequisites
 
-Before running the project, ensure you have the following installed:
+Before getting started, ensure you have the following installed:
 
-- Node.js (v18 or later)
-- npm, pnpm, or yarn package manager
-- Solana CLI (optional, for advanced blockchain interactions)
+- **Node.js** (v20 or later)
+- A package manager such as **npm**, **pnpm**, or **yarn**
+- **Solana CLI** (optional, for advanced blockchain interactions)
 
-## Environment Variables
+---
 
-Create a `.env.local` file in the root directory and provide the following variables:
+## Environment Configuration
 
-```
+Create a `.env.local` file in the project root and add the following variables:
+
+```env
 NEXT_PUBLIC_API_URL=<your-api-url>
 NEXT_PUBLIC_SOLANA_NETWORK=devnet
 NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
@@ -41,16 +58,18 @@ NEXT_PUBLIC_PRIVY_API_KEY=<your-privy-api-key>
 OPENAI_API_KEY=<your-openai-api-key>
 ```
 
+---
+
 ## Installation
 
-1. Clone the repository:
+1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/bark-protocol/ai-trading-dashboard.git
-   cd ai-trading-dashboard
+   git clone https://github.com/bark-protocol/ai-agent-dashboard.git
+   cd ai-agent-dashboard
    ```
 
-2. Install dependencies:
+2. **Install dependencies:**
 
    ```bash
    pnpm install
@@ -58,7 +77,7 @@ OPENAI_API_KEY=<your-openai-api-key>
    yarn install
    ```
 
-3. Start the development server:
+3. **Start the development server:**
 
    ```bash
    pnpm run dev
@@ -66,62 +85,79 @@ OPENAI_API_KEY=<your-openai-api-key>
    yarn dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+4. **Open your browser:**
 
-## Deployment
+   Visit [http://localhost:3000](http://localhost:3000) to see the application in action.
 
-This project is optimized for deployment on [Vercel](https://vercel.com/). Follow these steps to deploy:
+---
 
-1. Push your code to a GitHub repository.
-2. Link the repository to your Vercel account.
-3. Set environment variables in the Vercel dashboard.
-4. Deploy your project with one click.
+## API Endpoints & Project Structure
 
-## API Endpoints
+The application interacts with key endpoints such as:
 
-The application interacts with the following endpoints:
+- **`/api/jupiter`**: Retrieves price data from the Jupiter DEX.
+- **`/api/raydium`**: Retrieves price data from the Raydium DEX.
 
-- `/api/jupiter`: Fetches price data from Jupiter DEX.
-- `/api/raydium`: Fetches price data from Raydium DEX.
+In addition, all other API functionalities (including add API functions, cron jobs, chat, and wallet/portfolio operations) are implemented via a standardized `route.ts` file in their respective directories. This unified approach simplifies maintenance and enhances consistency across the project.
+
+---
 
 ## Technologies Used
 
-- **React**: Component-based UI library.
-- **Next.js**: Framework for server-side rendering and routing.
-- **Shadcn UI**: Component library for building modern UIs.
-- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **React**: For building the user interface.
+- **Next.js**: For server-side rendering and routing.
+- **Shadcn UI**: For a modern, component-based design.
+- **Tailwind CSS**: For utility-first styling.
 - **Sonner**: For toast notifications.
-- **Lucide Icons**: Modern icons for UI elements.
-- **Privy**: Enhances privacy and user data security.
-- **OpenAI**: Provides AI-driven insights for trading.
+- **Lucide Icons**: For contemporary UI icons.
+- **Privy**: For enhanced security and data privacy.
+- **OpenAI**: For AI-powered insights and recommendations.
+
+---
 
 ## How It Works
 
-1. **Token Selection**: Users select input and output tokens.
-2. **Price Fetching**: The app fetches token prices from Jupiter and Raydium APIs.
-3. **AI Analysis**: Prices are analyzed to determine the best trading option.
-4. **Trade Execution**: Users execute the trade with a single click.
+1. **Token Selection**:  
+   Choose input and output tokens from a dropdown populated with up-to-date token metadata.
+
+2. **Price Fetching**:  
+   Retrieve real-time pricing data from Jupiter and Raydium APIs.
+
+3. **AI Analysis**:  
+   The integrated AI analyzes the price data to determine the most favorable trading option.
+
+4. **Trade Execution**:  
+   Execute the trade with a single click, receiving immediate feedback through user notifications.
+
+---
 
 ## Contributing
 
-Contributions are welcome! Follow these steps to contribute:
+Contributions are welcome! To get involved:
 
-1. Fork the repository.
-2. Create a new branch:
+1. **Fork the repository.**
+2. **Create a new branch:**
+
    ```bash
    git checkout -b feature/your-feature
    ```
-3. Commit your changes:
+
+3. **Commit your changes:**
+
    ```bash
-   git commit -m "Add your message here"
+   git commit -m "Describe your feature or fix"
    ```
-4. Push to the branch:
+
+4. **Push your branch:**
+
    ```bash
    git push origin feature/your-feature
    ```
-5. Open a pull request.
+
+5. **Open a pull request** with a clear description of your changes.
+
+---
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-

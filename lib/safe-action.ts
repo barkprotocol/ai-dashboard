@@ -19,3 +19,4 @@ export interface ActionResponse<T> {
 }
 
 export type ActionEmptyResponse = ActionResponse<null>;
+

@@ -1,9 +1,11 @@
 "use client"
 
-import { useMemo, useCallback } from "react"
 import Link from "next/link"
+
 import { RiTwitterXFill } from "@remixicon/react"
-import { BookOpen, ChevronsUpDown, HelpCircle, Settings, LogOut } from "lucide-react"
+import { BookOpen, ChevronsUpDown, HelpCircle, Settings } from "lucide-react"
+import { LogOut } from "lucide-react"
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -20,70 +22,50 @@ import { useUser } from "@/hooks/use-user"
 
 export const AppSidebarUser = () => {
   const { isLoading, user, logout } = useUser()
+  const privyUser = user?.privyUser
+
   const isMobile = useIsMobile()
 
-  const { label, subLabel, twitterUsername, twitterProfileImage } = useMemo(() => {
-    const privyUser = user?.privyUser
-    return {
-      label: privyUser?.wallet ? privyUser.wallet.address.substring(0, 5) : privyUser?.email?.address || "Unknown User",
-      subLabel: privyUser?.id?.substring(10) || "N/A",
-      twitterUsername: privyUser?.twitter?.username,
-      twitterProfileImage: privyUser?.twitter?.profilePictureUrl,
-    }
-  }, [user])
-
-  const handleLogout = useCallback(() => {
-    logout()
-  }, [logout])
-
-  const handleOpenTwitter = useCallback(() => {
-    window.open("https://x.com/bark_protocol", "_blank", "noopener,noreferrer")
-  }, [])
-
-  const handleOpenDocs = useCallback(() => {
-    window.open("https://docs.barkprotocol.net", "_blank", "noopener,noreferrer")
-  }, [])
-
-  const renderUserButton = () => {
-    if (isLoading || !user?.privyUser) {
-      return (
-        <SidebarMenuButton
-          size="lg"
-          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-        >
-          <Skeleton className="h-8 w-8 rounded-lg" />
-          <div className="grid flex-1 gap-1 text-left text-sm leading-tight">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          <Skeleton className="ml-auto size-4" />
-        </SidebarMenuButton>
-      )
-    }
-
-    return (
-      <SidebarMenuButton
-        size="lg"
-        className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-      >
-        <Avatar className="h-8 w-8 rounded-lg">
-          <AvatarImage src={twitterProfileImage || undefined} alt={label || "User avatar"} />
-          <AvatarFallback className="rounded-lg">{label?.substring(0, 2)}</AvatarFallback>
-        </Avatar>
-        <div className="grid flex-1 text-left text-sm leading-tight">
-          <span className="truncate font-semibold">{twitterUsername ? `@${twitterUsername}` : label}</span>
-          <span className="truncate text-xs text-muted-foreground">{subLabel}</span>
-        </div>
-        <ChevronsUpDown className="ml-auto size-4" aria-hidden="true" />
-      </SidebarMenuButton>
-    )
-  }
+  const label = privyUser?.wallet ? privyUser.wallet.address.substring(0, 5) : privyUser?.email?.address
+  const subLabel = privyUser?.id?.substring(10)
+  const twitter = privyUser?.twitter
+  const twitterUsername = twitter?.username
+  const twitterProfileImage = twitter?.profilePictureUrl
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>{renderUserButton()}</DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>
+            {isLoading || !privyUser ? (
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              >
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <div className="grid flex-1 gap-1 text-left text-sm leading-tight">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="ml-auto size-4" />
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              >
+                <Avatar className="h-8 w-8 rounded-lg">
+                  <AvatarImage src={twitterProfileImage || undefined} />
+                  <AvatarFallback className="rounded-lg">{label?.substring(0, 2)}</AvatarFallback>
+                </Avatar>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">{twitterUsername ? `@${twitterUsername}` : label}</span>
+                  <span className="truncate text-xs text-muted-foreground">{subLabel}</span>
+                </div>
+                <ChevronsUpDown className="ml-auto size-4" />
+              </SidebarMenuButton>
+            )}
+          </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
@@ -91,33 +73,37 @@ export const AppSidebarUser = () => {
             sideOffset={4}
           >
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={handleOpenTwitter}>
-                <RiTwitterXFill className="mr-2 h-4 w-4" aria-hidden="true" />
+              {/* Follow us on X */}
+              <DropdownMenuItem onClick={() => window.open("https://x.com/bark_protocol", "_blank")}>
+                <RiTwitterXFill className="mr-2 h-4 w-4" />
                 Follow us on X
               </DropdownMenuItem>
 
-              <DropdownMenuItem asChild>
-                <Link href="/faq">
-                  <HelpCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+              {/* FAQ */}
+              <Link href="/faq">
+                <DropdownMenuItem>
+                  <HelpCircle className="mr-2 h-4 w-4" />
                   FAQ
-                </Link>
-              </DropdownMenuItem>
+                </DropdownMenuItem>
+              </Link>
 
-              <DropdownMenuItem onClick={handleOpenDocs}>
-                <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+              {/* Docs */}
+              <DropdownMenuItem onClick={() => window.open("https://whitepaper.ai.barkprotocol.net", "_blank")}>
+                <BookOpen className="mr-2 h-4 w-4" />
                 Docs
               </DropdownMenuItem>
 
-              <DropdownMenuItem asChild>
-                <Link href="/account">
-                  <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+              {/* Account */}
+              <Link href="/account">
+                <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
                   Account
-                </Link>
-              </DropdownMenuItem>
+                </DropdownMenuItem>
+              </Link>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+            <DropdownMenuItem onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -126,3 +112,4 @@ export const AppSidebarUser = () => {
     </SidebarMenu>
   )
 }
+

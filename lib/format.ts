@@ -10,7 +10,11 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 })
 
-export function formatNumber(input: any, type: "currency" | "number" = "number"): string {
+export function formatNumber(input: any, type: "currency" | "number" | "percent" = "number", decimals = 2): string {
+  if (type === "percent") {
+    return `${(Number.parseFloat(input) * 100).toFixed(decimals)}%`
+  }
+
   const value = Number.parseFloat(input) || 0
 
   if (value === 0) return "0"
@@ -21,16 +25,16 @@ export function formatNumber(input: any, type: "currency" | "number" = "number")
 
   // Handle very large numbers
   if (value >= 1e12) {
-    return `${type === "currency" ? "$" : ""}${(value / 1e12).toFixed(2)}T`
+    return `${type === "currency" ? "$" : ""}${(value / 1e12).toFixed(decimals)}T`
   }
   if (value >= 1e9) {
-    return `${type === "currency" ? "$" : ""}${(value / 1e9).toFixed(2)}B`
+    return `${type === "currency" ? "$" : ""}${(value / 1e9).toFixed(decimals)}B`
   }
   if (value >= 1e6) {
-    return `${type === "currency" ? "$" : ""}${(value / 1e6).toFixed(2)}M`
+    return `${type === "currency" ? "$" : ""}${(value / 1e6).toFixed(decimals)}M`
   }
   if (value >= 1e3) {
-    return `${type === "currency" ? "$" : ""}${(value / 1e3).toFixed(2)}K`
+    return `${type === "currency" ? "$" : ""}${(value / 1e3).toFixed(decimals)}K`
   }
 
   return type === "currency" ? formatter.format(value) : numberFormatter.format(value)
@@ -73,29 +77,5 @@ export function formatChartPrice(value: number): string {
   else {
     return value.toExponential(2)
   }
-}
-
-export function formatUserCreationDate(dateString: string | undefined): string {
-  if (!dateString) return "Unknown"
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-}
-
-export function formatWalletAddress(address: string): string {
-  if (address.length < 10) return address
-  return `${address.slice(0, 4)}...${address.slice(-4)}`
-}
-
-export function formatPrivyId(id: string): string {
-  if (id.length < 10) return id
-  return `${id.slice(0, 4)}...${id.slice(-4)}`
-}
-
-export function truncate(str: string, n: number): string {
-  if (str.length <= n) {
-    return str
-  }
-  const subString = str.slice(0, n - 1)
-  return subString.slice(0, subString.lastIndexOf(" ")) + "..."
 }
 

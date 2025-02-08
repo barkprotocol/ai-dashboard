@@ -1,58 +1,63 @@
-import { Conversation } from '@prisma/client';
-import { create } from 'zustand';
+import { create } from "zustand"
 
-interface ConversationsState {
-  conversations: Conversation[];
-  isLoading: boolean;
-  activeId: string | null;
-  setConversations: (conversations: Conversation[]) => void;
-  addConversation: (conversation: Conversation) => void;
-  removeConversation: (id: string) => void;
-  setActiveId: (id: string | null) => void;
-  setLoading: (loading: boolean) => void;
-  markAsRead: (id: string) => void;
+export interface Conversation {
+  id: string
+  title: string
+  lastMessageAt: Date | null
+  lastReadAt: Date | null
 }
 
-export const useConversationsStore = create<ConversationsState>((set: any) => ({
+interface ConversationsState {
+  conversations: Conversation[]
+  isLoading: boolean
+  activeId: string | null
+  setConversations: (conversations: Conversation[]) => void
+  addConversation: (conversation: Conversation) => void
+  removeConversation: (id: string) => void
+  setActiveId: (id: string | null) => void
+  setLoading: (loading: boolean) => void
+  markAsRead: (id: string) => void
+}
+
+export const useConversationsStore = create<ConversationsState>((set) => ({
   conversations: [],
   isLoading: true,
   activeId: null,
   setConversations: (conversations: Conversation[]) =>
-    set((state: ConversationsState) => ({
+    set((state) => ({
       ...state,
       conversations,
       isLoading: false,
     })),
   addConversation: (conversation: Conversation) =>
-    set((state: ConversationsState) => ({
+    set((state) => ({
       ...state,
       conversations: [conversation, ...state.conversations],
     })),
   removeConversation: (id: string) =>
-    set((state: ConversationsState) => ({
+    set((state) => ({
       ...state,
-      conversations: state.conversations.filter(
-        (c: Conversation) => c.id !== id,
-      ),
+      conversations: state.conversations.filter((c) => c.id !== id),
     })),
   setActiveId: (id: string | null) =>
-    set((state: ConversationsState) => ({
+    set((state) => ({
       ...state,
       activeId: id,
     })),
   setLoading: (loading: boolean) =>
-    set((state: ConversationsState) => ({
+    set((state) => ({
       ...state,
       isLoading: loading,
     })),
   markAsRead: (id: string) =>
-    set((state: ConversationsState) => ({
+    set((state) => ({
       ...state,
-      conversations: state.conversations.map((c: Conversation) => {
+      conversations: state.conversations.map((c) => {
         if (c.id === id) {
-          return { ...c, lastReadAt: new Date() };
+          return { ...c, lastReadAt: new Date() }
         }
-        return c;
+        return c
       }),
     })),
-}));
+}))
+

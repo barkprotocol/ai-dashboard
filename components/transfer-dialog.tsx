@@ -1,53 +1,33 @@
-'use client';
+"use client"
 
-import { useState } from 'react';
-
-import Image from 'next/image';
-
-import {
-  AlertCircle,
-  CheckCircle2,
-  ChevronRight,
-  Copy,
-  Loader2,
-} from 'lucide-react';
-import { toast } from 'sonner';
-
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { transferToken } from '@/server/actions/ai';
-import { FungibleToken } from '@/app/types/helius/fungibleToken';
+import { useState } from "react"
+import Image from "next/image"
+import { AlertCircle, CheckCircle2, ChevronRight, Copy, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { transferToken } from "@/server/actions/ai"
+import type { FungibleToken } from "@/types/helius/fungibleToken"
 
 interface TokenTransferDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  tokens: FungibleToken[];
-  otherAddresses: string[];
-  walletId: string;
-  onSuccess: () => Promise<void>;
+  isOpen: boolean
+  onClose: () => void
+  tokens: FungibleToken[]
+  otherAddresses: string[]
+  walletId: string
+  onSuccess: () => Promise<void>
 }
 
 interface TransactionResult {
-  success: boolean;
-  timestamp: Date;
-  error?: string;
-  hash?: string;
+  success: boolean
+  timestamp: Date
+  error?: string
+  hash?: string
 }
 
 export function TokenTransferDialog({
@@ -58,131 +38,120 @@ export function TokenTransferDialog({
   otherAddresses,
   onSuccess,
 }: TokenTransferDialogProps) {
-  const [step, setStep] = useState(1);
-  const [selectedToken, setSelectedToken] = useState<string>('');
-  const [amount, setAmount] = useState('');
-  const [address, setAddress] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [transactionResult, setTransactionResult] =
-    useState<TransactionResult | null>(null);
+  const [step, setStep] = useState(1)
+  const [selectedToken, setSelectedToken] = useState<string>("")
+  const [amount, setAmount] = useState("")
+  const [address, setAddress] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [transactionResult, setTransactionResult] = useState<TransactionResult | null>(null)
 
-  const selectedTokenData = tokens.find(
-    (token) => token.content.metadata.symbol === selectedToken,
-  );
+  const selectedTokenData = tokens.find((token) => token.content.metadata.symbol === selectedToken)
 
   const handleSubmit = async () => {
     if (!selectedTokenData) {
-      toast.error('Please select a token');
-      return;
+      toast.error("Please select a token")
+      return
     }
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
       const response = await transferToken({
         walletId: walletId,
         receiverAddress: address,
         tokenAddress: selectedTokenData?.id,
-        amount: parseFloat(amount),
+        amount: Number.parseFloat(amount),
         tokenSymbol: selectedToken,
-      });
+      })
 
       if (!response?.data?.success || !response?.data?.data) {
-        toast.error('Transaction failed. Please try again.');
-        return;
+        toast.error("Transaction failed. Please try again.")
+        return
       }
 
-      const { signature } = response.data.data;
+      const { signature } = response.data.data
 
       setTransactionResult({
         success: true,
         timestamp: new Date(),
         hash: signature,
-      });
-      setStep(5);
-      await onSuccess();
+      })
+      setStep(5)
+      await onSuccess()
     } catch (error) {
       setTransactionResult({
         success: false,
         timestamp: new Date(),
-        error: 'Transaction failed. Please try again.',
-      });
-      setStep(5);
+        error: "Transaction failed. Please try again.",
+      })
+      setStep(5)
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   const handleClose = () => {
-    onClose();
-    setStep(1);
-    setSelectedToken('');
-    setAmount('');
-    setAddress('');
-    setTransactionResult(null);
-  };
+    onClose()
+    setStep(1)
+    setSelectedToken("")
+    setAmount("")
+    setAddress("")
+    setTransactionResult(null)
+  }
 
   const formatBalance = (balance: number, decimals: number) => {
-    return (balance / Math.pow(10, decimals)).toFixed(4);
-  };
+    return (balance / Math.pow(10, decimals)).toFixed(4)
+  }
 
-  const calculateUsdValue = (
-    balance: number,
-    decimals: number,
-    pricePerToken: number,
-  ) => {
-    return (balance / Math.pow(10, decimals)) * pricePerToken;
-  };
+  const calculateUsdValue = (balance: number, decimals: number, pricePerToken: number) => {
+    return (balance / Math.pow(10, decimals)) * pricePerToken
+  }
 
   const handleQuickAmount = (percentage: number) => {
     if (selectedTokenData) {
-      const { balance, decimals } = selectedTokenData.token_info;
-      const maxAmount = balance / Math.pow(10, decimals);
-      const newAmount = maxAmount * (percentage / 100);
+      const { balance, decimals } = selectedTokenData.token_info
+      const maxAmount = balance / Math.pow(10, decimals)
+      const newAmount = maxAmount * (percentage / 100)
 
-      const factor = Math.pow(10, decimals);
-      const truncated = Math.floor(newAmount * factor) / factor;
+      const factor = Math.pow(10, decimals)
+      const truncated = Math.floor(newAmount * factor) / factor
 
-      setAmount(truncated.toString());
+      setAmount(truncated.toString())
     }
-  };
+  }
 
   const handleAmountChange = (newValue: string) => {
     if (selectedTokenData) {
-      const { decimals } = selectedTokenData.token_info;
-      const decimalRegex = new RegExp(`^(\\d+)(\\.(\\d{0,${decimals}}))?$`);
-      if (newValue === '' || decimalRegex.test(newValue)) {
-        setAmount(newValue);
+      const { decimals } = selectedTokenData.token_info
+      const decimalRegex = new RegExp(`^(\\d+)(\\.(\\d{0,${decimals}}))?$`)
+      if (newValue === "" || decimalRegex.test(newValue)) {
+        setAmount(newValue)
       }
     } else {
-      setAmount(newValue);
+      setAmount(newValue)
     }
-  };
+  }
 
-  const renderTokenInfo = (showSelectedAmount: boolean = false) => {
-    if (!selectedTokenData) return null;
+  const renderTokenInfo = (showSelectedAmount = false) => {
+    if (!selectedTokenData) return null
 
     const tokenBalance = showSelectedAmount
-      ? parseFloat(amount)
-      : selectedTokenData.token_info.balance /
-        Math.pow(10, selectedTokenData.token_info.decimals);
+      ? Number.parseFloat(amount)
+      : selectedTokenData.token_info.balance / Math.pow(10, selectedTokenData.token_info.decimals)
 
-    const usdValue =
-      selectedTokenData.token_info.price_info.price_per_token * tokenBalance;
+    const usdValue = selectedTokenData.token_info.price_info.price_per_token * tokenBalance
 
     return (
       <Card className="mb-4 p-4">
         <div className="flex items-center space-x-3">
           <Image
-            src={selectedTokenData.content.files[0]?.uri || '/placeholder.svg'}
+            src={selectedTokenData.content.files[0]?.uri || "/placeholder.svg"}
             alt={selectedTokenData.content.metadata.name}
             width={32}
             height={32}
             className="rounded-full"
           />
           <div className="flex-1">
-            <p className="font-medium">
-              {selectedTokenData.content.metadata.name}
-            </p>
+            <p className="font-medium">{selectedTokenData.content.metadata.name}</p>
             <p className="text-sm text-muted-foreground">
               {showSelectedAmount
                 ? `Amount: ${amount} ${selectedTokenData.content.metadata.symbol}`
@@ -193,17 +162,14 @@ export function TokenTransferDialog({
             <div className="text-right">
               <p className="text-base font-medium">${usdValue.toFixed(2)}</p>
               <p className="text-xs text-muted-foreground">
-                $
-                {selectedTokenData.token_info.price_info.price_per_token.toFixed(
-                  2,
-                )}
+                ${selectedTokenData.token_info.price_info.price_per_token.toFixed(2)}
               </p>
             </div>
           )}
         </div>
       </Card>
-    );
-  };
+    )
+  }
 
   const renderStepContent = () => {
     switch (step) {
@@ -213,20 +179,15 @@ export function TokenTransferDialog({
             <Label>Select Token</Label>
             <RadioGroup value={selectedToken} onValueChange={setSelectedToken}>
               {tokens.map((token) => {
-                const balance =
-                  token.token_info.balance /
-                  Math.pow(10, token.token_info.decimals);
+                const balance = token.token_info.balance / Math.pow(10, token.token_info.decimals)
                 const usdValue = calculateUsdValue(
                   token.token_info.balance,
                   token.token_info.decimals,
                   token.token_info.price_info.price_per_token,
-                );
+                )
 
                 return (
-                  <div
-                    key={token.content.metadata.symbol}
-                    className="flex items-center space-x-4 space-y-4 first:mt-0"
-                  >
+                  <div key={token.id} className="flex items-center space-x-4 space-y-4 first:mt-0">
                     <RadioGroupItem
                       value={token.content.metadata.symbol}
                       id={token.content.metadata.symbol}
@@ -237,42 +198,34 @@ export function TokenTransferDialog({
                       className="flex flex-1 items-center space-x-3 rounded-md border p-4 peer-aria-checked:border-primary"
                     >
                       <Image
-                        src={token.content.files[0]?.uri || '/placeholder.svg'}
+                        src={token.content.files[0]?.uri || "/placeholder.svg"}
                         alt={token.content.metadata.name}
                         width={32}
                         height={32}
                         className="rounded-full"
                       />
                       <div className="flex-1">
-                        <p className="font-medium">
-                          {token.content.metadata.name}
-                        </p>
+                        <p className="font-medium">{token.content.metadata.name}</p>
                         <p className="mb-1 font-mono text-xs text-muted-foreground">
                           {token.id.slice(0, 4)}...{token.id.slice(-4)}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Available: {balance.toFixed(4)}{' '}
-                          {token.content.metadata.symbol}
+                          Available: {balance.toFixed(4)} {token.content.metadata.symbol}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-base font-medium">
-                          ${usdValue.toFixed(2)}
-                        </p>
+                        <p className="text-base font-medium">${usdValue.toFixed(2)}</p>
                         <p className="text-xs text-muted-foreground">
-                          $
-                          {token.token_info.price_info.price_per_token.toFixed(
-                            2,
-                          )}
+                          ${token.token_info.price_info.price_per_token.toFixed(2)}
                         </p>
                       </div>
                     </Label>
                   </div>
-                );
+                )
               })}
             </RadioGroup>
           </div>
-        );
+        )
 
       case 2:
         return (
@@ -288,46 +241,26 @@ export function TokenTransferDialog({
               />
               {selectedTokenData && amount && (
                 <p className="text-sm text-muted-foreground">
-                  ≈ $
-                  {(
-                    parseFloat(amount) *
-                    selectedTokenData.token_info.price_info.price_per_token
-                  ).toFixed(2)}
+                  ≈ ${(Number.parseFloat(amount) * selectedTokenData.token_info.price_info.price_per_token).toFixed(2)}
                 </p>
               )}
               <div className="mt-2 flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAmount(25)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleQuickAmount(25)}>
                   25%
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAmount(50)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleQuickAmount(50)}>
                   50%
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAmount(75)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleQuickAmount(75)}>
                   75%
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickAmount(100)}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleQuickAmount(100)}>
                   Max
                 </Button>
               </div>
             </div>
           </div>
-        );
+        )
 
       case 3:
         return (
@@ -352,9 +285,7 @@ export function TokenTransferDialog({
                 </SelectContent>
               </Select>
               <div className="mt-2">
-                <Label className="text-sm text-muted-foreground">
-                  Or enter manually:
-                </Label>
+                <Label className="text-sm text-muted-foreground">Or enter manually:</Label>
                 <Input
                   placeholder="Enter recipient address"
                   value={address}
@@ -364,7 +295,7 @@ export function TokenTransferDialog({
               </div>
             </div>
           </div>
-        );
+        )
 
       case 4:
         return (
@@ -379,10 +310,7 @@ export function TokenTransferDialog({
                   {selectedTokenData?.token_info.price_info.price_per_token && (
                     <span className="block text-sm text-muted-foreground">
                       ≈ $
-                      {(
-                        parseFloat(amount) *
-                        selectedTokenData.token_info.price_info.price_per_token
-                      ).toFixed(2)}
+                      {(Number.parseFloat(amount) * selectedTokenData.token_info.price_info.price_per_token).toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -391,10 +319,10 @@ export function TokenTransferDialog({
               </div>
             </Card>
           </div>
-        );
+        )
 
       case 5:
-        if (!transactionResult) return null;
+        if (!transactionResult) return null
 
         return (
           <div className="grid gap-4 py-4">
@@ -402,21 +330,13 @@ export function TokenTransferDialog({
               {transactionResult.success ? (
                 <>
                   <CheckCircle2 className="mb-4 h-12 w-12 text-green-500" />
-                  <h3 className="mb-2 text-xl font-semibold">
-                    Transaction Successful
-                  </h3>
+                  <h3 className="mb-2 text-xl font-semibold">Transaction Successful</h3>
                 </>
               ) : (
                 <>
                   <AlertCircle className="mb-4 h-12 w-12 text-red-500" />
-                  <h3 className="mb-2 text-xl font-semibold">
-                    Transaction Failed
-                  </h3>
-                  {transactionResult.error && (
-                    <p className="mb-4 text-sm text-red-500">
-                      {transactionResult.error}
-                    </p>
-                  )}
+                  <h3 className="mb-2 text-xl font-semibold">Transaction Failed</h3>
+                  {transactionResult.error && <p className="mb-4 text-sm text-red-500">{transactionResult.error}</p>}
                 </>
               )}
             </div>
@@ -424,10 +344,8 @@ export function TokenTransferDialog({
             <Card className="p-4">
               <div className="grid grid-cols-[100px_1fr] gap-1 text-sm">
                 <div className="text-muted-foreground">Status:</div>
-                <div
-                  className={`font-medium ${transactionResult.success ? 'text-green-500' : 'text-red-500'}`}
-                >
-                  {transactionResult.success ? 'Completed' : 'Failed'}
+                <div className={`font-medium ${transactionResult.success ? "text-green-500" : "text-red-500"}`}>
+                  {transactionResult.success ? "Completed" : "Failed"}
                 </div>
 
                 <div className="text-muted-foreground">Token:</div>
@@ -441,10 +359,7 @@ export function TokenTransferDialog({
                   {selectedTokenData?.token_info.price_info.price_per_token && (
                     <span className="block text-sm text-muted-foreground">
                       ≈ $
-                      {(
-                        parseFloat(amount) *
-                        selectedTokenData.token_info.price_info.price_per_token
-                      ).toFixed(2)}
+                      {(Number.parseFloat(amount) * selectedTokenData.token_info.price_info.price_per_token).toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -453,9 +368,7 @@ export function TokenTransferDialog({
                 <div className="break-all font-mono font-medium">{address}</div>
 
                 <div className="text-muted-foreground">Time:</div>
-                <div className="font-medium">
-                  {transactionResult.timestamp.toLocaleTimeString()}
-                </div>
+                <div className="font-medium">{transactionResult.timestamp.toLocaleTimeString()}</div>
                 <div className="text-muted-foreground">Transaction:</div>
                 <div className="space-y-1 font-medium">
                   <div className="flex items-center gap-2">
@@ -468,7 +381,7 @@ export function TokenTransferDialog({
                       className="h-4 w-4"
                       onClick={() => {
                         if (transactionResult.hash) {
-                          navigator.clipboard.writeText(transactionResult.hash);
+                          navigator.clipboard.writeText(transactionResult.hash)
                         }
                       }}
                     >
@@ -487,20 +400,18 @@ export function TokenTransferDialog({
               </div>
             </Card>
           </div>
-        );
+        )
 
       default:
-        return null;
+        return null
     }
-  };
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>
-            {step === 5 ? 'Transaction Details' : 'Send Tokens'}
-          </DialogTitle>
+          <DialogTitle>{step === 5 ? "Transaction Details" : "Send Tokens"}</DialogTitle>
         </DialogHeader>
 
         {renderStepContent()}
@@ -521,28 +432,20 @@ export function TokenTransferDialog({
                 <Button
                   className="ml-auto"
                   onClick={() => setStep((s) => s + 1)}
-                  disabled={
-                    (step === 1 && !selectedToken) ||
-                    (step === 2 && !amount) ||
-                    (step === 3 && !address)
-                  }
+                  disabled={(step === 1 && !selectedToken) || (step === 2 && !amount) || (step === 3 && !address)}
                 >
                   Next
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
-                <Button
-                  className="ml-auto"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                >
+                <Button className="ml-auto" onClick={handleSubmit} disabled={isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Sending...
                     </>
                   ) : (
-                    'Confirm Send'
+                    "Confirm Send"
                   )}
                 </Button>
               )}
@@ -551,5 +454,6 @@ export function TokenTransferDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
+
