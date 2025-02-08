@@ -1,33 +1,11 @@
-import { convertToUIMessages } from "@/lib/utils"
-import type { NewAction } from "@/types/db"
-import { PrismaClient } from "@prisma/client"
+import { Action, Prisma, Message as PrismaMessage } from '@prisma/client';
+import { JsonValue } from '@prisma/client/runtime/library';
+import { tool } from 'ai';
+import _ from 'lodash';
 
-const prisma = new PrismaClient()
-
-// Mock data
-const mockUsers = [
-  { id: "1", name: "User 1", email: "user1@example.com" },
-  { id: "2", name: "User 2", email: "user2@example.com" },
-]
-
-const mockConversations = [
-  { id: "1", title: "Conversation 1", userId: "1" },
-  { id: "2", title: "Conversation 2", userId: "1" },
-]
-
-// Mock data structures
-let mockMessages: Message[] = []
-const mockActions: Action[] = []
-const mockTokenStats: TokenStat[] = []
-const mockTelegramChats: TelegramChat[] = []
-const mockSavedPrompts: SavedPrompt[] = []
-
-// Helper function to simulate database errors
-const simulateDbError = (chance = 0.1) => {
-  if (Math.random() < chance) {
-    throw new Error("Simulated database error")
-  }
-}
+import prisma from '@/lib/prisma';
+import { convertToUIMessages } from '@/lib/utils';
+import { NewAction } from '@/types/db';
 
 /**
  * Retrieves a conversation by its ID
@@ -40,20 +18,30 @@ export async function dbGetConversation({
   includeMessages,
   isServer,
 }: {
-  conversationId: string
-  includeMessages?: boolean
-  isServer?: boolean
-}): Promise<Conversation | null> {
+  conversationId: string;
+  includeMessages?: boolean;
+  isServer?: boolean;
+}) {
   try {
-    simulateDbError()
-    const conversation = mockConversations.find((c) => c.id === conversationId)
-    if (conversation && includeMessages) {
-      conversation.messages = mockMessages.filter((m) => m.conversationId === conversationId)
+    // Mark conversation as read if user is fetching
+    if (!isServer) {
+      return await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { lastReadAt: new Date() },
+        include: includeMessages ? { messages: true } : undefined,
+      });
+    } else {
+      return await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: includeMessages ? { messages: true } : undefined,
+      });
     }
-    return conversation || null
   } catch (error) {
-    console.error("[DB Error] Failed to get conversation:", error)
-    return null
+    console.error('[DB Error] Failed to get conversation:', {
+      conversationId,
+      error,
+    });
+    return null;
   }
 }
 
@@ -70,50 +58,55 @@ export async function dbCreateConversation({
   userId,
   title,
 }: {
-  conversationId: string
-  userId: string
-  title: string
-}): Promise<Conversation | null> {
+  conversationId: string;
+  userId: string;
+  title: string;
+}) {
   try {
-    simulateDbError()
-    const newConversation: Conversation = {
-      id: conversationId,
-      userId,
-      title,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-    mockConversations.push(newConversation)
-    return newConversation
+    return await prisma.conversation.create({
+      data: { id: conversationId, userId, title },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to create conversation:", error)
-    return null
+    console.error('[DB Error] Failed to create conversation:', {
+      conversationId,
+      userId,
+      error,
+    });
+    return null;
   }
 }
 
 /**
  * Creates multiple messages in bulk
  * @param {Object} params - The parameters object
- * @param {Array<Omit<Message, 'id' | 'createdAt'>>} params.messages - Array of message objects to create
- * @returns {Promise<{ count: number } | null>} The result of the bulk creation or null if it fails
+ * @param {Array<Omit<PrismaMessage, 'id' | 'createdAt'>>} params.messages - Array of message objects to create
+ * @returns {Promise<Prisma.BatchPayload | null>} The result of the bulk creation or null if it fails
  */
 export async function dbCreateMessages({
   messages,
 }: {
-  messages: Omit<Message, "id" | "createdAt">[]
-}): Promise<{ count: number } | null> {
+  messages: Omit<PrismaMessage, 'id' | 'createdAt'>[];
+}) {
   try {
-    simulateDbError()
-    const newMessages = messages.map((message) => ({
-      ...message,
-      id: `msg_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date(),
-    }))
-    mockMessages.push(...newMessages)
-    return { count: newMessages.length }
+    // Update conversation last message timestamp
+    const lastMessage = messages[messages.length - 1];
+
+    if (lastMessage) {
+      await prisma.conversation.update({
+        where: { id: lastMessage.conversationId },
+        data: { lastMessageAt: new Date() },
+      });
+    }
+
+    return await prisma.message.createManyAndReturn({
+      data: messages as Prisma.MessageCreateManyInput[],
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to create messages:", error)
-    return null
+    console.error('[DB Error] Failed to create messages:', {
+      messageCount: messages.length,
+      error,
+    });
+    return null;
   }
 }
 
@@ -124,20 +117,26 @@ export async function dbUpdateMessageToolInvocations({
   messageId,
   toolInvocations,
 }: {
-  messageId: string
-  toolInvocations: JsonValue
-}): Promise<Message | null> {
+  messageId: string;
+  toolInvocations: JsonValue;
+}) {
+  if (!toolInvocations) {
+    return null;
+  }
+
   try {
-    simulateDbError()
-    const message = mockMessages.find((m) => m.id === messageId)
-    if (message) {
-      message.toolInvocations = toolInvocations
-      return message
-    }
-    return null
+    return await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        toolInvocations,
+      },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to update message tool invocations:", error)
-    return null
+    console.error('[DB Error] Failed to update message:', {
+      messageId,
+      error,
+    });
+    return null;
   }
 }
 
@@ -152,34 +151,55 @@ export async function dbGetConversationMessages({
   limit,
   isServer,
 }: {
-  conversationId: string
-  limit?: number
-  isServer?: boolean
-}): Promise<Message[] | null> {
+  conversationId: string;
+  limit?: number;
+  isServer?: boolean;
+}) {
   try {
-    simulateDbError()
-    let messages = mockMessages.filter((m) => m.conversationId === conversationId)
-    if (limit) {
-      messages = messages.slice(-limit)
+    // Mark conversation as read if user is fetching
+    if (!isServer) {
+      console.log('Marking conversation as read', conversationId);
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { lastReadAt: new Date() },
+      });
     }
-    const uiMessages = convertToUIMessages(messages)
 
-    if (limit && uiMessages.length && uiMessages[uiMessages.length - 1].role !== "user") {
-      const lastMessageAt = uiMessages[uiMessages.length - 1].createdAt || new Date(1)
+    const messages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: limit
+        ? { createdAt: 'desc' }
+        : [{ createdAt: 'asc' }, { role: 'asc' }],
+      take: limit,
+    });
+
+    const uiMessages = convertToUIMessages(messages);
+
+    // If our final message is not a user message, add a fake empty user message
+    if (
+      limit &&
+      uiMessages.length &&
+      uiMessages[uiMessages.length - 1].role !== 'user'
+    ) {
+      const lastMessageAt =
+        uiMessages[uiMessages.length - 1].createdAt || new Date(1);
       uiMessages.push({
-        id: "fake",
+        id: 'fake',
         createdAt: new Date(lastMessageAt.getTime() - 1),
-        role: "user",
-        content: "user message",
+        role: 'user',
+        content: 'user message',
         toolInvocations: [],
         experimental_attachments: [],
-      })
+      });
     }
 
-    return uiMessages
+    return uiMessages;
   } catch (error) {
-    console.error("[DB Error] Failed to get conversation messages:", error)
-    return null
+    console.error('[DB Error] Failed to get conversation messages:', {
+      conversationId,
+      error,
+    });
+    return null;
   }
 }
 
@@ -194,18 +214,31 @@ export async function dbDeleteConversation({
   conversationId,
   userId,
 }: {
-  conversationId: string
-  userId: string
-}): Promise<void> {
+  conversationId: string;
+  userId: string;
+}) {
   try {
-    simulateDbError()
-    const index = mockConversations.findIndex((c) => c.id === conversationId && c.userId === userId)
-    if (index !== -1) {
-      mockConversations.splice(index, 1)
-      mockMessages = mockMessages.filter((m) => m.conversationId !== conversationId)
-    }
+    await prisma.$transaction([
+      prisma.action.deleteMany({
+        where: { conversationId },
+      }),
+      prisma.message.deleteMany({
+        where: { conversationId },
+      }),
+      prisma.conversation.delete({
+        where: {
+          id: conversationId,
+          userId,
+        },
+      }),
+    ]);
   } catch (error) {
-    console.error("[DB Error] Failed to delete conversation:", error)
+    console.error('[DB Error] Failed to delete conversation:', {
+      conversationId,
+      userId,
+      error,
+    });
+    throw error;
   }
 }
 
@@ -215,13 +248,18 @@ export async function dbDeleteConversation({
  * @param {string} params.userId - The ID of the user
  * @returns {Promise<Conversation[]>} Array of conversations
  */
-export async function dbGetConversations({ userId }: { userId: string }): Promise<Conversation[]> {
+export async function dbGetConversations({ userId }: { userId: string }) {
   try {
-    simulateDbError()
-    return mockConversations.filter((c) => c.userId === userId)
+    return await prisma.conversation.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to get user conversations:", error)
-    return []
+    console.error('[DB Error] Failed to get user conversations:', {
+      userId,
+      error,
+    });
+    return [];
   }
 }
 
@@ -239,33 +277,52 @@ export async function dbGetActions({
   paused = false,
   completed = false,
 }: {
-  triggered: boolean
-  paused: boolean
-  completed: boolean
-}): Promise<Action[]> {
+  triggered: boolean;
+  paused: boolean;
+  completed: boolean;
+}) {
   try {
-    simulateDbError()
-    return mockActions.filter((a) => a.triggered === triggered && a.paused === paused && a.completed === completed)
+    return await prisma.action.findMany({
+      where: {
+        triggered,
+        paused,
+        completed,
+        OR: [{ startTime: { lte: new Date() } }, { startTime: null }],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { include: { wallets: true, subscription: true } } },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to get actions:", error)
-    return []
+    console.error('[DB Error] Failed to get actions:', {
+      error,
+    });
+    return [];
   }
 }
 
-export async function dbCreateAction(action: NewAction): Promise<Action | undefined> {
+export async function dbCreateAction(action: NewAction) {
   try {
-    simulateDbError()
-    const newAction: Action = {
-      ...action,
-      id: `action_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-    mockActions.push(newAction)
-    return newAction
+    return await prisma.action.create({
+      data: {
+        ..._.omit(action, 'conversationId', 'userId'),
+        params: action.params as Prisma.JsonObject,
+        user: {
+          connect: {
+            id: action.userId,
+          },
+        },
+        conversation: {
+          connect: {
+            id: action.conversationId,
+          },
+        },
+      },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to create action:", error)
-    return undefined
+    console.error('[DB Error] Failed to create action:', {
+      error,
+    });
+    return undefined;
   }
 }
 
@@ -276,41 +333,45 @@ export async function dbCreateTokenStat({
   promptTokens,
   completionTokens,
 }: {
-  userId: string
-  messageIds: string[]
-  totalTokens: number
-  promptTokens: number
-  completionTokens: number
-}): Promise<TokenStat | null> {
+  userId: string;
+  messageIds: string[];
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+}) {
   try {
-    simulateDbError()
-    const newTokenStat: TokenStat = {
-      id: `tokenstat_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      messageIds,
-      totalTokens,
-      promptTokens,
-      completionTokens,
-      createdAt: new Date(),
-    }
-    mockTokenStats.push(newTokenStat)
-    return newTokenStat
+    return await prisma.tokenStat.create({
+      data: {
+        userId,
+        messageIds,
+        totalTokens,
+        promptTokens,
+        completionTokens,
+      },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to create token stats:", error)
-    return null
+    console.error('[DB Error] Failed to create token stats:', {
+      error,
+    });
+    return null;
   }
 }
 
 /**
  * Retrieves the Telegram ID for a user
  */
-export async function dbGetUserTelegramChat({ userId }: { userId: string }): Promise<TelegramChat | null> {
+export async function dbGetUserTelegramChat({ userId }: { userId: string }) {
   try {
-    simulateDbError()
-    return mockTelegramChats.find((chat) => chat.userId === userId) || null
+    return await prisma.telegramChat.findUnique({
+      where: { userId },
+      select: { username: true, chatId: true },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to get user Telegram Chat:", error)
-    return null
+    console.error('[DB Error] Failed to get user Telegram Chat:', {
+      userId,
+      error,
+    });
+    return null;
   }
 }
 
@@ -322,34 +383,42 @@ export async function dbUpdateUserTelegramChat({
   username,
   chatId,
 }: {
-  userId: string
-  username: string
-  chatId?: string
-}): Promise<TelegramChat | null> {
+  userId: string;
+  username: string;
+  chatId?: string;
+}) {
   try {
-    simulateDbError()
-    let chat = mockTelegramChats.find((c) => c.userId === userId)
-    if (chat) {
-      chat.username = username
-      chat.chatId = chatId
-    } else {
-      chat = { userId, username, chatId }
-      mockTelegramChats.push(chat)
-    }
-    return chat
+    return await prisma.telegramChat.upsert({
+      where: { userId },
+      update: { username, chatId },
+      create: { userId, username, chatId },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to update user Telegram Chat:", error)
-    return null
+    console.error('[DB Error] Failed to update user Telegram Chat:', {
+      userId,
+      username,
+      error: `${error}`,
+    });
+    return null;
   }
 }
 
-export async function dbGetUserActions({ userId }: { userId: string }): Promise<Action[]> {
+export async function dbGetUserActions({ userId }: { userId: string }) {
   try {
-    simulateDbError()
-    return mockActions.filter((action) => action.userId === userId)
+    const actions = await prisma.action.findMany({
+      where: {
+        userId,
+        completed: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return actions;
   } catch (error) {
-    console.error("[DB Error] Failed to get user actions:", error)
-    return []
+    console.error('[DB Error] Failed to get user actions:', {
+      userId,
+      error,
+    });
+    return [];
   }
 }
 
@@ -357,17 +426,19 @@ export async function dbDeleteAction({
   id,
   userId,
 }: {
-  id: string
-  userId: string
-}): Promise<void> {
+  id: string;
+  userId: string;
+}) {
   try {
-    simulateDbError()
-    const index = mockActions.findIndex((a) => a.id === id && a.userId === userId)
-    if (index !== -1) {
-      mockActions.splice(index, 1)
-    }
+    return await prisma.action.delete({
+      where: {
+        id,
+        userId, // Ensure user owns the action
+      },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to delete action:", error)
+    console.error('[DB Error] Failed to delete action:', { id, userId, error });
+    throw error;
   }
 }
 
@@ -376,35 +447,57 @@ export async function dbUpdateAction({
   userId,
   data,
 }: {
-  id: string
-  userId: string
-  data: Partial<Action>
-}): Promise<Action | null> {
+  id: string;
+  userId: string;
+  data: Partial<Action>;
+}) {
   try {
-    simulateDbError()
-    const action = mockActions.find((a) => a.id === id && a.userId === userId)
-    if (action) {
-      Object.assign(action, data)
-      action.updatedAt = new Date()
-      return action
-    }
-    return null
+    // Validate and clean the data before update
+    const validData = {
+      name: data.name,
+      description: data.description,
+      frequency: data.frequency === 0 ? null : data.frequency,
+      maxExecutions: data.maxExecutions === 0 ? null : data.maxExecutions,
+      // Only include fields we want to update
+    } as const;
+
+    return await prisma.action.update({
+      where: {
+        id,
+        userId,
+      },
+      data: validData,
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to update action:", error)
-    return null
+    console.error('[DB Error] Failed to update action:', { id, userId, error });
+    return null;
   }
 }
 
 /**
- * Retrieves the Saved Prompts for a user
+ * Retreieves the Saved Prompts for a user
  */
-export async function dbGetSavedPrompts({ userId }: { userId: string }): Promise<SavedPrompt[]> {
+export async function dbGetSavedPrompts({ userId }: { userId: string }) {
   try {
-    simulateDbError()
-    return mockSavedPrompts.filter((prompt) => prompt.userId === userId)
+    const prompts = await prisma.savedPrompt.findMany({
+      where: { userId },
+      orderBy: [
+        { isFavorite: 'desc' },
+        {
+          lastUsedAt: {
+            sort: 'desc',
+            nulls: 'last',
+          },
+        },
+      ],
+    });
+    return prompts;
   } catch (error) {
-    console.error("[DB Error] Failed to fetch Saved Prompts:", error)
-    return []
+    console.error('[DB Error] Failed to fetch Saved Prompt:', {
+      userId,
+      error,
+    });
+    return [];
   }
 }
 
@@ -416,28 +509,25 @@ export async function dbCreateSavedPrompt({
   title,
   content,
 }: {
-  userId: string
-  title: string
-  content: string
-}): Promise<SavedPrompt | null> {
+  userId: string;
+  title: string;
+  content: string;
+}) {
   try {
-    simulateDbError()
-    const newPrompt: SavedPrompt = {
-      id: `prompt_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      title,
-      content,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      isFavorite: false,
-      lastUsedAt: null,
-      usageFrequency: 0,
-    }
-    mockSavedPrompts.push(newPrompt)
-    return newPrompt
+    const prompt = await prisma.savedPrompt.create({
+      data: {
+        userId,
+        title,
+        content,
+      },
+    });
+    return prompt;
   } catch (error) {
-    console.error("[DB Error] Failed to create Saved Prompt:", error)
-    return null
+    console.error('[DB Error] Failed to create Saved Prompt:', {
+      userId,
+      error,
+    });
+    return null;
   }
 }
 
@@ -449,23 +539,21 @@ export async function dbUpdateSavedPrompt({
   title,
   content,
 }: {
-  id: string
-  title: string
-  content: string
-}): Promise<SavedPrompt | null> {
+  id: string;
+  title: string;
+  content: string;
+}) {
   try {
-    simulateDbError()
-    const prompt = mockSavedPrompts.find((p) => p.id === id)
-    if (prompt) {
-      prompt.title = title
-      prompt.content = content
-      prompt.updatedAt = new Date()
-      return prompt
-    }
-    return null
+    return await prisma.savedPrompt.update({
+      where: { id },
+      data: { title, content, updatedAt: new Date() },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to update Saved Prompt:", error)
-    return null
+    console.error('[DB Error] Failed to update Saved Prompt:', {
+      id,
+      title,
+      error,
+    });
   }
 }
 
@@ -476,137 +564,64 @@ export async function dbUpdateSavedPromptIsFavorite({
   id,
   isFavorite,
 }: {
-  id: string
-  isFavorite: boolean
-}): Promise<SavedPrompt | null> {
+  id: string;
+  isFavorite: boolean;
+}) {
   try {
-    simulateDbError()
-    const prompt = mockSavedPrompts.find((p) => p.id === id)
-    if (prompt) {
-      prompt.isFavorite = isFavorite
-      return prompt
-    }
-    return null
+    return await prisma.savedPrompt.update({
+      where: { id },
+      data: { isFavorite },
+    });
   } catch (error) {
-    console.error("[DB Error] Failed to update status -isFavorite- of saved prompt:", error)
-    return null
+    console.error(
+      '[DB Error] Failed to update status -isFavorite- of saved prompt:',
+      {
+        id,
+        error,
+      },
+    );
   }
 }
 
 /**
  * Updates status 'lastUsedAt' of saved prompt for a user
  */
-export async function dbUpdateSavedPromptLastUsedAt({ id }: { id: string }): Promise<SavedPrompt | null> {
+export async function dbUpdateSavedPromptLastUsedAt({ id }: { id: string }) {
   try {
-    simulateDbError()
-    const prompt = mockSavedPrompts.find((p) => p.id === id)
-    if (prompt) {
-      prompt.lastUsedAt = new Date()
-      prompt.usageFrequency += 1
-      return prompt
-    }
-    return null
+    const prompt = await prisma.savedPrompt.update({
+      where: { id },
+      data: {
+        usageFrequency: {
+          increment: 1,
+        },
+        lastUsedAt: new Date(),
+      },
+    });
+    return prompt;
   } catch (error) {
-    console.error("[DB Error] Failed to update -lastUsedAt- of prompt:", error)
-    return null
+    console.error('[DB Error] Failed to update -lastUsedAt- of prompt:', {
+      id,
+      error,
+    });
+    return null;
   }
 }
 
 /**
  * Deletes a Saved Prompt for a user
  */
-export async function dbDeleteSavedPrompt({ id }: { id: string }): Promise<boolean> {
+export async function dbDeleteSavedPrompt({ id }: { id: string }) {
   try {
-    simulateDbError()
-    const index = mockSavedPrompts.findIndex((p) => p.id === id)
-    if (index !== -1) {
-      mockSavedPrompts.splice(index, 1)
-      return true
-    }
-    return false
+    const deletedPrompt = await prisma.savedPrompt.delete({
+      where: { id },
+    });
+
+    return !!deletedPrompt;
   } catch (error) {
-    console.error("[DB Error] Failed to delete Saved Prompt:", error)
-    return false
+    console.error('[DB Error] Failed to delete Saved Prompt:', {
+      id,
+    });
+
+    return false;
   }
 }
-
-// Type definitions (these should match your actual types)
-type Conversation = {
-  id: string
-  userId: string
-  title: string
-  createdAt: Date
-  updatedAt: Date
-  messages?: Message[]
-}
-
-type Message = {
-  id: string
-  conversationId: string
-  createdAt: Date
-  role: string
-  content: string
-  toolInvocations: any[]
-  experimental_attachments: any[]
-}
-
-type Action = {
-  id: string
-  userId: string
-  triggered: boolean
-  paused: boolean
-  completed: boolean
-  createdAt: Date
-  updatedAt: Date
-  // Add other necessary fields
-}
-
-type TokenStat = {
-  id: string
-  userId: string
-  messageIds: string[]
-  totalTokens: number
-  promptTokens: number
-  completionTokens: number
-  createdAt: Date
-}
-
-type TelegramChat = {
-  userId: string
-  username: string
-  chatId?: string
-}
-
-type SavedPrompt = {
-  id: string
-  userId: string
-  title: string
-  content: string
-  createdAt: Date
-  updatedAt: Date
-  isFavorite: boolean
-  lastUsedAt: Date | null
-  usageFrequency: number
-}
-
-type User = {
-  id: string
-  name: string
-  email: string
-}
-
-// Export types if needed
-export type { Conversation, Message, Action, TokenStat, TelegramChat, SavedPrompt, User }
-
-type JsonValue = any // Replace 'any' with the actual type of JsonValue if known.  This is a guess.
-
-export async function getUser(userId: string) {
-  return mockUsers.find((user) => user.id === userId)
-}
-
-export async function getConversations(userId: string) {
-  return mockConversations.filter((conv) => conv.userId === userId)
-}
-
-// Add more mock query functions as needed
-

@@ -16,7 +16,7 @@ import { definedTools } from './solana/defined-fi';
 import { dexscreenerTools } from './solana/dexscreener';
 import { jupiterTools } from './solana/jupiter';
 import { magicEdenTools } from './solana/magic-eden';
-import { pumpfunTools } from './solana/pumpfun';
+import { pumpfunTools } from './solana/pump.fun';
 import { solanaTools } from './solana/solana';
 
 const usingAnthropic = !!process.env.ANTHROPIC_API_KEY;

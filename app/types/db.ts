@@ -5,8 +5,8 @@ import type {
   SubscriptionPayment,
   Wallet as _PrismaWallet,
 } from '@prisma/client';
-//import { Prisma, User as _PrismaUser } from '@prisma/client';
-//import type { Conversation as _PrismaConversation } from '@prisma/client';
+import { Prisma, User as _PrismaUser } from '@prisma/client';
+import type { Conversation as _PrismaConversation } from '@prisma/client';
 import { User as _PrivyUser } from '@privy-io/react-auth';
 
 export type EmbeddedWallet = Pick<
@@ -74,4 +74,3 @@ export type ActionWithUser = Prisma.ActionGetPayload<{
 export type ActionFull = Prisma.ActionGetPayload<{
   select: { [K in keyof Required<Prisma.ActionSelect>]: true };
 }>;
-

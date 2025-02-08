@@ -38,6 +38,7 @@ import { getUserID, grantDiscordRole } from "@/lib/utils/grant-discord-role"
 import { reactivateUser, subscribeUser, unsubscribeUser } from "@/server/actions/subscription"
 import { type UserUpdateData, updateUser } from "@/server/actions/user"
 import type { EmbeddedWallet } from "@/types/db"
+import { createWallet, deleteWallet, setActiveWallet } from "@/app/server/actions/wallet"
 
 import { LoadingStateSkeleton } from "./loading-skeleton"
 
@@ -519,6 +520,8 @@ export function AccountContent() {
                     wallet={wallet}
                     mutateWallets={mutateWallets}
                     allWalletAddresses={allWalletAddresses}
+                    onDeleteWallet={deleteWallet}
+                    setActiveWallet={setActiveWallet}
                   />
                 ))
               : ready && (
@@ -535,7 +538,7 @@ export function AccountContent() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => createSolanaWallet().then(() => mutateWallets())}
+                            onClick={() => createWallet().then(() => mutateWallets())}
                             className={cn("min-w-[100px] text-xs")}
                           >
                             Create
@@ -556,6 +559,8 @@ export function AccountContent() {
                 wallet={wallet}
                 mutateWallets={mutateWallets}
                 allWalletAddresses={allWalletAddresses}
+                onDeleteWallet={deleteWallet}
+                setActiveWallet={setActiveWallet}
               />
             ))}
           </section>
