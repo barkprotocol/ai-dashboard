@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-
 import { useDelegatedActions } from "@privy-io/react-auth"
 import { useFundWallet, useSolanaWallets } from "@privy-io/react-auth/solana"
 import { ArrowRightFromLine, ArrowUpDown, Banknote, CheckCircle2, Users, Wallet } from "lucide-react"
@@ -23,7 +22,6 @@ import { SOL_MINT } from "@/types/helius/portfolio"
 
 interface WalletCardProps {
   wallet: EmbeddedWallet
-  // from the parent SWR, re-fetches the entire wallet list
   mutateWallets: () => Promise<EmbeddedWallet[] | undefined>
   allWalletAddresses: string[]
 }
@@ -47,9 +45,6 @@ export function WalletCard({ wallet, mutateWallets, allWalletAddresses }: Wallet
     refreshInterval: 30000,
   })
 
-  /**
-   * Refresh wallet list + this wallet's balance
-   */
   async function refreshWalletData() {
     await mutateWallets()
     await mutateWalletPortfolio()

@@ -1,171 +1,224 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { WalletPortfolio } from "@/components/message/wallet-portfolio"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { mockPortfolioData } from "@/lib/mock-data"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState } from "react"
+import { useDelegatedActions } from "@privy-io/react-auth"
+import { useFundWallet, useSolanaWallets } from "@privy-io/react-auth/solana"
+import { ArrowRightFromLine, ArrowUpDown, Banknote, CheckCircle2, Users, Wallet } from "lucide-react"
+import { toast } from "sonner"
+import useSWR from "swr"
+import { useSWRConfig } from "swr"
+
+import { TokenTransferDialog } from "@/components/transfer-dialog"
 import { Button } from "@/components/ui/button"
-import { Wallet, ExternalLink } from "lucide-react"
-import { SolanaIcon } from "@/components/icons/solana-icon"
-import { useTheme } from "next-themes"
-import { SSEClient } from "@/lib/sse-client"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { useSession } from "next-auth/react"
-import { LoginButton } from "@/components/login-button"
+import { Card, CardContent } from "@/components/ui/card"
+import { CopyableText } from "@/components/ui/copyable-text"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { searchWalletAssets } from "@/lib/solana/helius"
+import { cn } from "@/lib/utils"
+import { setActiveWallet } from "@/server/actions/wallet"
+import type { EmbeddedWallet } from "@/types/db"
+import { SOL_MINT } from "@/types/helius/portfolio"
 
-export function DashboardContent() {
-  const { data: session } = useSession()
-  const { theme } = useTheme()
-  const [balance, setBalance] = useState("0.00")
-  const [connectedWallet, setConnectedWallet] = useState<string | null>(null)
-  const [barkPrice, setBarkPrice] = useState(0.0015)
-  const [barkChange, setBarkChange] = useState(5.67)
-  const [marketCap, setMarketCap] = useState(10500000)
-  const [priceHistory, setPriceHistory] = useState([
-    { time: "00:00", price: 0.0014 },
-    { time: "04:00", price: 0.0015 },
-    { time: "08:00", price: 0.00155 },
-    { time: "12:00", price: 0.0016 },
-    { time: "16:00", price: 0.00158 },
-    { time: "20:00", price: 0.0015 },
-  ])
+interface WalletCardProps {
+  wallet: EmbeddedWallet
+  mutateWallets: () => Promise<EmbeddedWallet[] | undefined>
+  allWalletAddresses: string[]
+}
 
-  useEffect(() => {
-    const sseClient = new SSEClient("/api/dashboard-updates")
-    sseClient.connect((data) => {
-      if (data.balance) setBalance(data.balance)
-      if (data.barkPrice) setBarkPrice(data.barkPrice)
-      if (data.barkChange) setBarkChange(data.barkChange)
-      if (data.marketCap) setMarketCap(data.marketCap)
-      if (data.priceHistory) setPriceHistory(data.priceHistory)
-    })
+export function WalletCard({ wallet, mutateWallets, allWalletAddresses }: WalletCardProps) {
+  const { mutate } = useSWRConfig()
+  const { fundWallet } = useFundWallet()
+  const { exportWallet } = useSolanaWallets()
+  const { delegateWallet, revokeWallets } = useDelegatedActions()
 
-    return () => {
-      sseClient.disconnect()
-    }
-  }, [])
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleConnectWallet = () => {
-    setConnectedWallet(connectedWallet ? null : "bark1...xyz")
+  const isPrivyWallet = wallet.walletSource === "PRIVY"
+
+  const {
+    data: walletPortfolio,
+    isLoading: isWalletPortfolioLoading,
+    mutate: mutateWalletPortfolio,
+  } = useSWR(["wallet-portfolio", wallet.publicKey], () => searchWalletAssets(wallet.publicKey), {
+    refreshInterval: 30000,
+  })
+
+  async function refreshWalletData() {
+    await mutateWallets()
+    await mutateWalletPortfolio()
   }
 
+  async function handleDelegationToggle() {
+    try {
+      setIsLoading(true)
+      if (!wallet.delegated) {
+        await delegateWallet({
+          address: wallet.publicKey,
+          chainType: "solana",
+        })
+        toast.success("Wallet delegated")
+      } else {
+        await revokeWallets()
+        toast.success("Delegation revoked")
+      }
+      await refreshWalletData()
+    } catch (err) {
+      toast.error("Failed to update delegation")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleSetActive() {
+    if (wallet.active) return
+    try {
+      setIsLoading(true)
+      await setActiveWallet({ publicKey: wallet.publicKey })
+      toast.success("Wallet set as active")
+      await refreshWalletData()
+    } catch (err) {
+      toast.error("Failed to set wallet as active")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleFundWallet() {
+    try {
+      setIsLoading(true)
+      await fundWallet(wallet.publicKey, { cluster: { name: "mainnet-beta" } })
+      toast.success("Wallet funded")
+      await refreshWalletData()
+    } catch (err) {
+      toast.error("Failed to fund wallet")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleCloseDialog() {
+    setIsSendDialogOpen(false)
+  }
+
+  async function onTransferSuccess() {
+    mutate((key) => {
+      return Array.isArray(key) && key[0] === "wallet-portfolio"
+    })
+  }
+
+  const solBalanceInfo = walletPortfolio?.fungibleTokens?.find((t) => t.id === SOL_MINT)
+
+  const balance = solBalanceInfo
+    ? solBalanceInfo.token_info.balance / 10 ** solBalanceInfo.token_info.decimals
+    : undefined
+
+  const otherAddresses = allWalletAddresses.filter((address) => address !== wallet.publicKey)
+
   return (
-    <div className="flex flex-col h-full bg-gray-100 dark:bg-background">
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border-b space-y-4 sm:space-y-0 bg-white dark:bg-sidebar">
-        <div className="flex items-center space-x-4">
-          <Avatar>
-            <AvatarImage src={session?.user?.image || "/placeholder.svg"} alt={session?.user?.name || "User"} />
-            <AvatarFallback>{session?.user?.name?.[0] || "U"}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-lg font-semibold">Welcome, {session?.user?.name || "User"}</h2>
-            <p className="text-sm text-muted-foreground">Your dashboard overview</p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-4 w-full sm:w-auto">
-          <div className="flex items-center space-x-2 flex-grow sm:flex-grow-0">
-            <SolanaIcon className="w-6 h-6 text-primary" />
-            <span className="font-semibold">{balance} SOL</span>
-          </div>
-          <Button
-            variant="outline"
-            className="bg-primary text-primary-foreground min-w-[150px] justify-start flex-grow sm:flex-grow-0"
-            onClick={handleConnectWallet}
-          >
-            <Wallet className="w-4 h-4 mr-2 flex-shrink-0" />
-            <span className="truncate">{connectedWallet ? connectedWallet : "Connect Wallet"}</span>
-          </Button>
-          <LoginButton />
-        </div>
-      </header>
-      <main className="flex-1 p-4 overflow-auto">
-        <div className="h-4"></div>
-        <div className="max-w-7xl mx-auto space-y-6">
-          <Card className="shadow-lg bg-white dark:bg-sidebar">
-            <CardHeader className="pb-2">
-              <CardTitle>BARK Protocol Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm font-medium">Current BARK Price</p>
-                  <p className="text-2xl font-bold">${barkPrice.toFixed(4)}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">24h Change</p>
-                  <p className={`text-lg font-semibold ${barkChange >= 0 ? "text-green-500" : "text-red-500"}`}>
-                    {barkChange >= 0 ? "+" : ""}
-                    {barkChange.toFixed(2)}%
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Market Cap</p>
-                  <p className="text-lg font-semibold">${marketCap.toLocaleString()}</p>
-                </div>
-                <div className="flex items-center">
-                  <Button variant="outline" className="w-full">
-                    Trade BARK
-                    <ExternalLink className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
+    <>
+      <Card className="relative overflow-hidden transition-all duration-300 hover:border-primary/30">
+        <CardContent className="space-y-4 p-6">
+          {/* Status Badges */}
+          <div className="flex items-center gap-2">
+            {wallet?.active && (
+              <div className="inline-flex items-center rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                Active
               </div>
-              <div className="mt-6 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={priceHistory}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="price" stroke="#8884d8" />
-                  </LineChart>
-                </ResponsiveContainer>
+            )}
+            {isPrivyWallet && wallet?.delegated && (
+              <div className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                <Users className="mr-1.5 h-3.5 w-3.5" />
+                Delegated
               </div>
-            </CardContent>
-          </Card>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="shadow-lg bg-white dark:bg-sidebar">
-              <CardHeader className="pb-2">
-                <CardTitle>Your Wallet</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <WalletPortfolio data={mockPortfolioData} isLoading={false} />
-              </CardContent>
-            </Card>
-            <Card className="shadow-lg bg-white dark:bg-sidebar">
-              <CardHeader className="pb-2">
-                <CardTitle>Recent Saved Prompts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[300px]">
-                  {mockPortfolioData.savedPrompts.map((prompt) => (
-                    <div key={prompt.id} className="mb-3 p-3 bg-gray-50 dark:bg-card rounded-lg shadow">
-                      <h3 className="text-sm font-medium">{prompt.title}</h3>
-                      <p className="text-xs text-muted-foreground truncate mt-1">{prompt.content}</p>
-                    </div>
-                  ))}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+            )}
           </div>
-        </div>
-      </main>
-      <footer className="border-t p-4 text-center text-sm text-muted-foreground bg-white dark:bg-sidebar">
-        <p>&copy; 2025 BARK Protocol. All rights reserved.</p>
-        <div className="mt-2 flex justify-center space-x-4">
-          <a href="#" className="hover:underline">
-            Terms of Service
-          </a>
-          <a href="#" className="hover:underline">
-            Privacy Policy
-          </a>
-          <a href="#" className="hover:underline">
-            Contact Us
-          </a>
-        </div>
-      </footer>
-    </div>
+
+          {/* Balance Section */}
+          <div className="space-y-1">
+            <Label className="text-xs font-normal text-muted-foreground">Available Balance</Label>
+            <div className="flex items-baseline gap-2">
+              {isWalletPortfolioLoading ? (
+                <Skeleton className="h-9 w-32" />
+              ) : (
+                <>
+                  <span className="text-3xl font-bold tabular-nums tracking-tight">{balance?.toFixed(4)}</span>
+                  <span className="text-sm font-medium text-muted-foreground">SOL</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Public Key Section */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-normal text-muted-foreground">Public Key</Label>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <CopyableText text={wallet?.publicKey || ""} showSolscan />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <Button className="w-full sm:w-auto" onClick={handleFundWallet} disabled={isLoading}>
+              <Banknote className="mr-2 h-4 w-4" />
+              Fund
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setIsSendDialogOpen(true)}
+              disabled={isLoading}
+            >
+              <ArrowUpDown className="mr-2 h-4 w-4" />
+              Send
+            </Button>
+
+            {isPrivyWallet && (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => exportWallet({ address: wallet.publicKey })}
+                  disabled={isLoading}
+                >
+                  <ArrowRightFromLine className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className={cn("w-full sm:w-auto", wallet?.delegated ? "hover:bg-destructive" : "")}
+                  onClick={handleDelegationToggle}
+                  disabled={isLoading}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  {wallet?.delegated ? "Revoke" : "Delegate"}
+                </Button>
+              </>
+            )}
+
+            {!wallet?.active && (
+              <Button variant="outline" className="w-full sm:w-auto" onClick={handleSetActive} disabled={isLoading}>
+                <Wallet className="mr-2 h-4 w-4" />
+                Set Active
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <TokenTransferDialog
+        isOpen={isSendDialogOpen}
+        onClose={handleCloseDialog}
+        tokens={walletPortfolio?.fungibleTokens || []}
+        onSuccess={onTransferSuccess}
+        otherAddresses={otherAddresses}
+        walletId={wallet.id}
+      />
+    </>
   )
 }
 
