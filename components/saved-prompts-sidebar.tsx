@@ -16,11 +16,12 @@ interface SavedPrompt {
   is_favorite: boolean
 }
 
-interface SavedPromptsMenuProps {
+interface SavedPromptsSidebarProps {
+  onSelectPrompt: (content: string) => void
   onPromptSelect: (prompt: SavedPrompt) => void
 }
 
-export default function SavedPromptsMenu({ onPromptSelect }: SavedPromptsMenuProps) {
+export function SavedPromptsSidebar({ onSelectPrompt, onPromptSelect }: SavedPromptsSidebarProps) {
   const [prompts, setPrompts] = useState<SavedPrompt[]>([])
   const [search, setSearch] = useState("")
   const { user, isLoading } = useUser()
@@ -134,7 +135,13 @@ export default function SavedPromptsMenu({ onPromptSelect }: SavedPromptsMenuPro
                 </Button>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground truncate mt-1" onClick={() => onPromptSelect(prompt)}>
+            <p
+              className="text-sm text-muted-foreground truncate mt-1"
+              onClick={() => {
+                onSelectPrompt(prompt.content)
+                onPromptSelect(prompt)
+              }}
+            >
               {prompt.content}
             </p>
           </div>

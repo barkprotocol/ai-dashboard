@@ -12,11 +12,11 @@ import { useUser } from "@/hooks/use-user"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import ChatMessage from "@/components/chat-message"
-import { EmptyScreen } from "@/components/empty-screen"
+import EmptyScreen from "@/components/empty-screen"
 import ChatScrollAnchor from "@/components/chat-scroll-anchor"
 import { useAction } from "@/hooks/use-action"
 import { useConversations } from "@/hooks/use-conversations"
-import { SavedPromptsMenu } from "@/components/saved-prompts-menu"
+import SavedPromptsMenu from "@/components/saved-prompts-menu"
 
 export interface ChatProps extends React.ComponentProps<"div"> {
   initialMessages?: Message[]
@@ -27,7 +27,7 @@ export function ChatInterface({ id, initialMessages, className }: ChatProps) {
   const router = useRouter()
   const { user } = useUser()
   const { dispatchAction } = useAction()
-  const { addConversation } = useConversations()
+  const { conversations, refreshConversations } = useConversations()
   const [attachments, setAttachments] = useState<File[]>([])
 
   const {
@@ -97,10 +97,15 @@ export function ChatInterface({ id, initialMessages, className }: ChatProps) {
         id: Date.now().toString(),
         content: value,
         role: "user",
-        experimental_attachments: attachmentUrls.map((url) => ({
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      if (attachmentUrls.length > 0) {
+        newMessage.attachments = attachmentUrls.map((url) => ({
           url,
-          contentType: "image/png",
-        })),
+          type: "image/png",
+        }))
       }
 
       append(newMessage)
@@ -109,8 +114,9 @@ export function ChatInterface({ id, initialMessages, className }: ChatProps) {
       setAttachments([])
 
       await handleSubmit(newMessage)
+      refreshConversations()
     },
-    [user, attachments, append, setInput, handleSubmit],
+    [user, attachments, append, setInput, handleSubmit, refreshConversations],
   )
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,9 +131,9 @@ export function ChatInterface({ id, initialMessages, className }: ChatProps) {
         {messages.length ? (
           <>
             {messages.map((message, index) => (
-              <ChatMessage key={index} message={message} />
+              <ChatMessage key={index} message={message} isUser={message.role === "user"} />
             ))}
-            <ChatScrollAnchor trackVisibility={isLoading} />
+            <ChatScrollAnchor />
           </>
         ) : (
           <EmptyScreen setInput={setInput} />

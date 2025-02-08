@@ -6,15 +6,17 @@ import { Slider } from "./ui/slider"
 import { cn } from "@/lib/utils"
 
 interface BrevityProps {
-  content: string
+  content?: string
+  message?: string
   maxLength?: number
 }
 
-export function Brevity({ content, maxLength = 280 }: BrevityProps) {
+export function Brevity({ content, message, maxLength = 280 }: BrevityProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [customLength, setCustomLength] = useState(maxLength)
 
-  const truncatedContent = isExpanded ? content : content.slice(0, customLength)
+  const textContent = content || message || ""
+  const truncatedContent = isExpanded ? textContent : textContent.slice(0, customLength)
 
   const handleToggle = () => {
     setIsExpanded(!isExpanded)
@@ -29,7 +31,7 @@ export function Brevity({ content, maxLength = 280 }: BrevityProps) {
       <p className={cn("text-sm text-gray-700 dark:text-gray-300", !isExpanded && "line-clamp-3")}>
         {truncatedContent}
       </p>
-      {content.length > maxLength && (
+      {textContent.length > maxLength && (
         <>
           <Button
             variant="ghost"
@@ -42,7 +44,7 @@ export function Brevity({ content, maxLength = 280 }: BrevityProps) {
           <div className="flex items-center space-x-2">
             <Slider
               min={50}
-              max={content.length}
+              max={textContent.length}
               step={10}
               value={[customLength]}
               onValueChange={handleSliderChange}
