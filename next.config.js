@@ -1,18 +1,22 @@
 /** @type {import('next').NextConfig} */
-const domainConfig = require("./next.config.domains")
-
 const nextConfig = {
   reactStrictMode: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  swcMinify: true,
   images: {
     domains: ["localhost", "uploadcare.com", "dashboard.barkprotocol.net"],
   },
-  ...domainConfig,
+  // Enable static exports for Vercel
+  output: "standalone",
+  webpack: (config, { isServer }) => {
+    // Fixes npm packages that depend on `fs` module
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      }
+    }
+    return config
+  },
 }
 
 module.exports = nextConfig

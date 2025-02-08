@@ -1,91 +1,40 @@
-"use server"
-
-import { cache } from "react"
 import { z } from "zod"
 import { createSafeAction } from "@/lib/safe-action"
 
-import { searchWalletAssets } from "@/lib/solana/helius"
-import type { ActionResponse } from "@/lib/safe-action"
+export enum BirdeyeTimeframe {
+  ONE_DAY = "1d",
+  SEVEN_DAYS = "7d",
+  THIRTY_DAYS = "30d",
+}
 
-export interface BirdeyeTrader {
+export type BirdeyeTrader = {
   address: string
   pnl: number
+  trades: number
   volume: number
-  tradeCount: number
-  portfolio?: Awaited<ReturnType<typeof searchWalletAssets>>
 }
 
-const birdeyeTraderSchema = z.object({
-  network: z.string(),
-  address: z.string(),
-  pnl: z.number(),
-  volume: z.number(),
-  trade_count: z.number(),
+const getTopTradersSchema = z.object({
+  timeframe: z.nativeEnum(BirdeyeTimeframe),
 })
 
-export enum BirdeyeTimeframe {
-  TODAY = "today",
-  YESTERDAY = "yesterday",
-  WEEK = "1W",
-}
+export const getTopTraders = createSafeAction(getTopTradersSchema, async ({ timeframe }) => {
+  try {
+    const response = await fetch(`https://public-api.birdeye.so/defi/top_traders?timeframe=${timeframe}`, {
+      headers: {
+        "X-API-Key": process.env.BIRDEYE_API_KEY || "",
+      },
+    })
 
-const birdeyeTradersSchema = z.object({
-  data: z.object({
-    items: z.array(birdeyeTraderSchema),
-  }),
-})
-
-// Cache the fetch for 5 minutes
-export const getTopTraders = cache(
-  async ({
-    timeframe = BirdeyeTimeframe.TODAY,
-  }: {
-    timeframe: BirdeyeTimeframe
-  }): Promise<ActionResponse<BirdeyeTrader[]>> => {
-    try {
-      const queryParams = new URLSearchParams({
-        type: timeframe,
-        sort_by: "PnL",
-        sort_type: "desc",
-        offset: "0",
-        limit: "5",
-      }).toString()
-
-      const response = await fetch("https://public-api.birdeye.so/trader/gainers-losers?" + queryParams, {
-        next: {
-          revalidate: 300, // Cache for 5 minutes
-        },
-        headers: {
-          "X-API-KEY": process.env.BIRDEYE_API_KEY || "",
-          "x-chain": "solana",
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch Birdeye traders")
-      }
-
-      const data = await response.json()
-      const parsed = birdeyeTradersSchema.parse(data)
-
-      // Only return the fields we need
-      const traders = await Promise.all(
-        parsed.data.items.map(async (trader) => ({
-          address: trader.address,
-          pnl: trader.pnl,
-          volume: trader.volume,
-          tradeCount: trader.trade_count,
-          portfolio: await searchWalletAssets(trader.address),
-        })),
-      )
-
-      return { success: true, data: traders }
-    } catch (error) {
-      console.error("Error fetching Birdeye traders:", error)
-      return { success: false, error: "Failed to fetch Birdeye traders" }
+    if (!response.ok) {
+      throw new Error(`Birdeye API responded with status: ${response.status}`)
     }
-  },
-)
 
-export const getTopTradersSafeAction = createSafeAction(getTopTraders)
+    const data = await response.json()
+    return data.data as BirdeyeTrader[]
+  } catch (error) {
+    console.error("Error fetching top traders:", error)
+    throw new Error("Failed to fetch top traders")
+  }
+})
 

@@ -1,12 +1,14 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getServerSession } from "next-auth/next"
 
-// Initialize Supabase client
+import { authOptions } from "../auth/[...nextauth]/route"
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-export async function verifyUser(req: NextRequest): Promise<{ user: any } | { error: string }> {
+export async function verifyUser(req: Request): Promise<{ user: any } | { error: string }> {
   try {
     const token = req.headers.get("Authorization")?.split("Bearer ")[1]
 
@@ -30,20 +32,19 @@ export async function verifyUser(req: NextRequest): Promise<{ user: any } | { er
   }
 }
 
-export async function GET(req: NextRequest) {
-  const verificationResult = await verifyUser(req)
-  if ("error" in verificationResult) {
-    return NextResponse.json(verificationResult, { status: 401 })
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
-    const userId = req.nextUrl.searchParams.get("userId")
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
-    }
-
-    const { data: user, error } = await supabase.from("users").select("*").eq("id", userId).single()
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", session.user.id)
+      .single()
 
     if (error) {
       throw error
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   const verificationResult = await verifyUser(req)
   if ("error" in verificationResult) {
     return NextResponse.json(verificationResult, { status: 401 })
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function PUT(req: NextRequest) {
+export async function PUT(req: Request) {
   const verificationResult = await verifyUser(req)
   if ("error" in verificationResult) {
     return NextResponse.json(verificationResult, { status: 401 })
@@ -104,7 +105,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: Request) {
   const verificationResult = await verifyUser(req)
   if ("error" in verificationResult) {
     return NextResponse.json(verificationResult, { status: 401 })
@@ -129,4 +130,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }
-
