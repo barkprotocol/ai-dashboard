@@ -54,7 +54,7 @@ Realtime knowledge:
 - { approximateCurrentTime: ${new Date().toISOString()}}
 `
 
-const openAiModel = {
+export const openAiModel = {
   generateText: async ({ prompt, messages }) => {
     const { text } = await generateText({
       model: openai("gpt-4"),
@@ -68,7 +68,7 @@ const openAiModel = {
   },
 }
 
-const claude35Sonnet = {
+export const claude35Sonnet = {
   generateText: async ({ prompt, messages }) => {
     const { text } = await generateText({
       model: anthropic("claude-3-sonnet"),
@@ -82,7 +82,7 @@ const claude35Sonnet = {
   },
 }
 
-const deepseekModel = {
+export const deepseekModel = {
   generateText: async ({ prompt, messages }) => {
     const { text } = await generateText({
       model: deepseek("deepseek-chat"),

@@ -1,35 +1,44 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { ImageIcon, SendHorizontal, Link2 } from 'lucide-react'
+import { ImageIcon, SendHorizontal, Link2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChatSkeleton } from "@/components/chat-skeleton"
-import { defaultSystemPrompt, defaultModel } from "@/lib/ai-config"
-import React from 'react'
+import { defaultSystemPrompt, defaultModel, openAiModel, claude35Sonnet, deepseekModel } from "@/lib/ai-config"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Message {
   role: "user" | "ai" | "system"
   content: string
 }
 
-interface ChatInterfaceProps {
-  conversationId?: string;
+interface AIModel {
+  name: string
+  model: typeof defaultModel
 }
 
-export function ChatInterface({ conversationId }: ChatInterfaceProps) {
+const aiModels: AIModel[] = [
+  { name: "Default", model: defaultModel },
+  { name: "OpenAI", model: openAiModel },
+  { name: "Claude", model: claude35Sonnet },
+  { name: "DeepSeek", model: deepseekModel },
+]
+
+export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([{ role: "system", content: defaultSystemPrompt }])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<AIModel>(aiModels[0])
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
-  }, [scrollAreaRef.current]) // Updated dependency
+  }, [scrollAreaRef]) //Fixed useEffect dependency
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,7 +50,7 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     setIsLoading(true)
 
     try {
-      const response = await defaultModel.generateText({
+      const response = await selectedModel.model.generateText({
         prompt: input,
         messages: messages,
       })
@@ -71,11 +80,28 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
 
   return (
     <div className="flex flex-col h-full bg-background border-l">
-      <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">Chat Interface</h2>
-        <p className="text-sm text-muted-foreground">
-          Ask questions and get AI-powered responses about BARK and Solana DeFi
-        </p>
+      <div className="p-4 border-b flex justify-between items-center">
+        <div>
+          <h2 className="text-lg font-semibold">Chat Interface</h2>
+          <p className="text-sm text-muted-foreground">
+            Ask questions and get AI-powered responses about BARK and Solana DeFi
+          </p>
+        </div>
+        <Select
+          value={selectedModel.name}
+          onValueChange={(value) => setSelectedModel(aiModels.find((model) => model.name === value) || aiModels[0])}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select AI Model" />
+          </SelectTrigger>
+          <SelectContent>
+            {aiModels.map((model) => (
+              <SelectItem key={model.name} value={model.name}>
+                {model.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
@@ -137,3 +163,4 @@ export function ChatInterface({ conversationId }: ChatInterfaceProps) {
     </div>
   )
 }
+
