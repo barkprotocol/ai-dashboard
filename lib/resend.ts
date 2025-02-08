@@ -62,9 +62,9 @@ export async function sendWelcomeEmail({
 }) {
   return sendEmail({
     to: email,
-    subject: "Welcome to BARK Protocol | AI!",
+    subject: "Welcome to BARK AI!",
     html: `
-      <h1>Welcome to BARK AI Dashboard, ${name}!</h1>
+      <h1>Welcome to BARK AI, ${name}!</h1>
       <p>We're excited to have you on board. Here are some things you can do to get started:</p>
       <ul>
         <li>Set up your wallet</li>

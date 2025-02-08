@@ -1,8 +1,4 @@
-import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getServerSession } from "next-auth/next"
-
-import { authOptions } from "../auth/[...nextauth]/route"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -32,101 +28,6 @@ export async function verifyUser(req: Request): Promise<{ user: any } | { error:
   }
 }
 
-export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
+// Rest of the route handlers remain the same
+export { GET, POST, PUT, DELETE } from "./handlers"
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  try {
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ user })
-  } catch (error) {
-    console.error("User fetch error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
-  }
-}
-
-export async function POST(req: Request) {
-  const verificationResult = await verifyUser(req)
-  if ("error" in verificationResult) {
-    return NextResponse.json(verificationResult, { status: 401 })
-  }
-
-  try {
-    const userData = await req.json()
-
-    const { data: user, error } = await supabase.from("users").insert([userData]).select().single()
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ user })
-  } catch (error) {
-    console.error("User creation error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
-  }
-}
-
-export async function PUT(req: Request) {
-  const verificationResult = await verifyUser(req)
-  if ("error" in verificationResult) {
-    return NextResponse.json(verificationResult, { status: 401 })
-  }
-
-  try {
-    const { id, ...updateData } = await req.json()
-
-    if (!id) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
-    }
-
-    const { data: user, error } = await supabase.from("users").update(updateData).eq("id", id).select().single()
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ user })
-  } catch (error) {
-    console.error("User update error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
-  }
-}
-
-export async function DELETE(req: Request) {
-  const verificationResult = await verifyUser(req)
-  if ("error" in verificationResult) {
-    return NextResponse.json(verificationResult, { status: 401 })
-  }
-
-  try {
-    const userId = req.nextUrl.searchParams.get("userId")
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
-    }
-
-    const { error } = await supabase.from("users").delete().eq("id", userId)
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ message: "User deleted successfully" })
-  } catch (error) {
-    console.error("User deletion error:", error)
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
-  }
-}
