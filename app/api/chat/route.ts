@@ -1,76 +1,62 @@
-import { OpenAIStream, StreamingTextResponse } from "ai"
-import { Configuration, OpenAIApi } from "openai-edge"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { generateChatResponse } from "@/services/ai-service"
+import { verifyUser } from "@/server/actions/user"
+import { dbSaveConversation, dbSaveMessage } from "@/server/db/queries"
 
-import { defaultModel, defaultSystemPrompt } from "@/ai/providers"
-import { verifyUser } from "@/app/api/user/route"
-import prisma from "@/lib/prisma"
-import { dbCreateMessages, dbGetConversation } from "@/server/db/queries"
-import type { Message } from "@prisma/client"
+export async function POST(req: NextRequest) {
+  try {
+    // Verify user authentication
+    const session = await verifyUser()
+    const userId = session?.data?.data?.id
 
-const config = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-const openai = new OpenAIApi(config)
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-export const runtime = "edge"
+    // Parse request body
+    const { messages, model = "gpt-4o", functions, conversationId } = await req.json()
 
-export async function POST(req: Request) {
-  const json = await req.json()
-  const { messages, conversationId } = json
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json({ error: "Invalid messages format" }, { status: 400 })
+    }
 
-  const result = await verifyUser(req)
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: 401 })
-  }
-  const userId = result.user.id
+    // Generate AI response
+    const response = await generateChatResponse(messages, model, functions)
 
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    // Save conversation and messages to database
+    let savedConversationId = conversationId
 
-  let conversation = await dbGetConversation({ conversationId })
-
-  if (!conversation) {
-    conversation = await prisma.conversation.create({
-      data: {
+    if (!savedConversationId) {
+      // Create new conversation if no ID provided
+      const savedConversation = await dbSaveConversation({
         userId,
-      },
+        title: messages[0]?.text?.substring(0, 50) || "New conversation",
+      })
+      savedConversationId = savedConversation.id
+    }
+
+    // Save user message
+    const userMessage = messages[messages.length - 1]
+    await dbSaveMessage({
+      conversationId: savedConversationId,
+      content: userMessage.text,
+      role: "user",
     })
+
+    // Save AI response
+    await dbSaveMessage({
+      conversationId: savedConversationId,
+      content: response.text,
+      role: "assistant",
+    })
+
+    return NextResponse.json({
+      ...response,
+      conversationId: savedConversationId,
+    })
+  } catch (error) {
+    console.error("[chat/route] Error generating response:", error)
+    return NextResponse.json({ error: "Failed to generate response" }, { status: 500 })
   }
-
-  const prompt = messages[messages.length - 1].content
-
-  const response = await openai.createChatCompletion({
-    model: defaultModel as unknown as string,
-    stream: true,
-    messages: [
-      {
-        role: "system",
-        content: defaultSystemPrompt,
-      },
-      ...messages,
-    ],
-  })
-
-  const stream = OpenAIStream(response, {
-    async onCompletion(completion: any) {
-      const dbMessages: Message[] = [
-        {
-          conversationId: conversation!.id,
-          role: "user",
-          content: prompt,
-        },
-        {
-          conversationId: conversation!.id,
-          role: "assistant",
-          content: completion,
-        },
-      ]
-      await dbCreateMessages({ messages: dbMessages })
-    },
-  })
-
-  return new StreamingTextResponse(stream)
 }
 
